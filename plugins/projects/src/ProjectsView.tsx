@@ -2,18 +2,8 @@ import React, { useEffect, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import { Icon } from '@mpw/ui';
 import { parseResourceUri, resourceUri } from '@mpw/shared';
+import { addLink, createProject, deleteProject, listLinks, listProjects, removeLink, type ProjectLinkRecord, type ProjectRecord } from './store';
 
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  color: string;
-}
-interface Link {
-  id: string;
-  resource_uri: string;
-  label: string;
-}
 
 const KIND_LABEL: Record<string, string> = {
   note: '笔记', reference: '文献', doc: '文档', mail: '邮件', task: '任务', blob: '文件',
@@ -21,19 +11,17 @@ const KIND_LABEL: Record<string, string> = {
 
 export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement {
   const { ctx } = props;
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [links, setLinks] = useState<Link[]>([]);
+  const [links, setLinks] = useState<ProjectLinkRecord[]>([]);
   const [uriDraft, setUriDraft] = useState('');
 
   const loadProjects = async (): Promise<void> =>
-    setProjects(await ctx.storage.sql.all<Project>('SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY created_at'));
+    setProjects(await listProjects(ctx));
 
   const loadLinks = async (): Promise<void> => {
     if (!activeId) return setLinks([]);
-    setLinks(
-      await ctx.storage.sql.all<Link>('SELECT id, resource_uri, label FROM project_links WHERE project_id = ? ORDER BY added_at', [activeId])
-    );
+    setLinks(await listLinks(ctx, activeId));
   };
 
   useEffect(() => {
@@ -43,17 +31,14 @@ export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement 
     void loadLinks();
   }, [activeId]);
 
-  const createProject = async (): Promise<void> => {
+  const promptCreateProject = async (): Promise<void> => {
     const name = window.prompt('项目名称(如:多模态图像融合)');
     if (!name) return;
-    await ctx.storage.sql.exec(
-      'INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-      [crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), name, '', Date.now(), Date.now()]
-    );
+    await createProject(ctx, name);
     await loadProjects();
   };
 
-  const addLink = async (): Promise<void> => {
+  const submitLink = async (): Promise<void> => {
     const raw = uriDraft.trim();
     setUriDraft('');
     const parsed = parseResourceUri(raw);
@@ -61,13 +46,11 @@ export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement 
       ctx.ui.notify('资源链接格式应为 mpw://类型/ID,如 mpw://note/xxx', 'warn');
       return;
     }
-    await ctx.storage.sql.exec('INSERT INTO project_links (id, project_id, resource_uri, label, added_at) VALUES (?, ?, ?, ?, ?)', [
-      String(Date.now()) + Math.random().toString(16).slice(2, 6),
-      activeId,
-      raw,
-      parsed.id,
-      Date.now(),
-    ]);
+    if (!activeId) {
+      ctx.ui.notify('请先选择或创建一个项目', 'warn');
+      return;
+    }
+    await addLink(ctx, activeId, raw, parsed.id);
     await loadLinks();
   };
 
@@ -83,7 +66,7 @@ export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement 
       <div className="notes-side">
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-3)', flex: 1 }}>{projects.length} 个项目</span>
-          <button className="btn sm primary" onClick={() => void createProject()}>
+          <button className="btn sm primary" title="新建项目" onClick={() => void promptCreateProject()}>
             <Icon name="plus" size={12} />
           </button>
         </div>
@@ -108,8 +91,8 @@ export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement 
               ))}
             </div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              <input className="input" style={{ flex: 1 }} placeholder="粘贴资源链接,如 mpw://note/… 或 mpw://reference/…" value={uriDraft} onChange={(e) => setUriDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void addLink()} />
-              <button className="btn sm primary" onClick={() => void addLink()}>
+              <input className="input" style={{ flex: 1 }} placeholder="粘贴资源链接,如 mpw://note/… 或 mpw://reference/…" value={uriDraft} onChange={(e) => setUriDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submitLink()} />
+              <button className="btn sm primary" onClick={() => void submitLink()}>
                 <Icon name="link" size={12} /> 关联资源
               </button>
             </div>
@@ -122,7 +105,7 @@ export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement 
                   <button
                     className="icon-btn danger"
                     onClick={async () => {
-                      await ctx.storage.sql.exec('DELETE FROM project_links WHERE id = ?', [l.id]);
+                      await removeLink(ctx, l.id);
                       await loadLinks();
                     }}
                   >

@@ -123,4 +123,19 @@ export const CORE_MIGRATIONS: Migration[] = [
       `);
     },
   },
+
+  {
+    version: 2,
+    name: 'move-projects-domain-to-plugin',
+    /*
+     * Phase 2 架构修正:项目域归 mpw.projects 插件所有(表 p_projects_*),
+     * 核心不再承载任何插件业务表。旧表若已存在则移交后删除。
+     */
+    up(db) {
+      db.exec(`
+        DROP TABLE IF EXISTS project_links;
+        DROP TABLE IF EXISTS projects;
+      `);
+    },
+  },
 ];

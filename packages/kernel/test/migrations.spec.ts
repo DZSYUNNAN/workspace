@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { openMemoryDb, migrate, type DbAdapter, type Migration } from '@mpw/kernel';
+import { CORE_MIGRATIONS, openMemoryDb, migrate, type DbAdapter, type Migration } from '@mpw/kernel';
 
 function sampleMigration(n: number, sql: string): Migration {
   return {
@@ -63,5 +63,15 @@ describe('migration runner', () => {
     expect(() => migrate(db, [bad])).toThrow('explosion mid-migration');
     expect(db.one("SELECT name FROM sqlite_master WHERE name = 'ok'")).toBeNull();
     expect(db.one('SELECT COUNT(*) AS n FROM schema_migrations')?.['n']).toBe(0);
+  });
+
+  it('v2 迁移将项目域移交给插件(核心不再保留 projects 业务表)', async () => {
+    const db = await openMemoryDb();
+    const result = migrate(db, CORE_MIGRATIONS);
+    expect(result.applied).toEqual([1, 2]);
+    expect(db.one("SELECT name FROM sqlite_master WHERE name = 'projects'")).toBeNull();
+    expect(db.one("SELECT name FROM sqlite_master WHERE name = 'project_links'")).toBeNull();
+    // 幂等:重复执行同一迁移集不报错
+    expect(() => migrate(db, CORE_MIGRATIONS)).not.toThrow();
   });
 });
