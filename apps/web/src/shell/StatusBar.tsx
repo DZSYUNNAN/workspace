@@ -1,39 +1,73 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../state';
-import { Icon } from '../components/Icon';
+import { Icon } from '@mpw/ui';
+import { APP_VERSION } from './StatusBar.version';
+import { APP_NAME } from '../labels';
 
+/** 状态栏:工作区模式切换 · 本地已同步 · 后台任务 · 版本(ModuDesk 设计稿)。 */
 export function StatusBar(): React.ReactElement {
-  const { kernel, version } = useApp();
+  const { kernel, version, workspaceId, setLayout, layout, refresh } = useApp();
   void version;
+  const [bgCount, setBgCount] = useState(kernel.bgTasks.count());
+  const [wsMenu, setWsMenu] = useState(false);
+
+  useEffect(() => {
+    return kernel.events.on('bgtasks:changed', (p) => {
+      setBgCount((p as { count: number }).count);
+    });
+  }, [kernel]);
+
   const plugins = kernel.listPlugins();
   const loaded = plugins.filter((p) => p.loaded).length;
   const failed = plugins.filter((p) => p.state === 'error');
-  const blobsMb = (Math.round((blobSize(kernel) / 1024 / 1024) * 10) / 10).toFixed(1);
+  const presets = kernel.workspaces.listPresets(workspaceId).filter((p) => p.isBuiltin);
+  const activePreset = presets.find((p) => JSON.stringify(JSON.parse(p.state).areas) === JSON.stringify(layout.areas));
+
   return (
     <div className="statusbar">
+      <div className="sb-item" style={{ position: 'relative' }}>
+        <button className="sb-btn" onClick={() => setWsMenu((v) => !v)} title="切换工作区布局预设">
+          <Icon name="grid" size={12} /> 工作区:{activePreset?.name ?? '自定义'} <Icon name="chevron" size={11} />
+        </button>
+        {wsMenu && (
+          <div className="add-menu" style={{ bottom: 26, left: 0, top: 'auto' }} onClick={() => setWsMenu(false)}>
+            <div className="group">布局预设</div>
+            {presets.map((p) => (
+              <button
+                key={p.id}
+                className="mi"
+                onClick={() => {
+                  setLayout(() => JSON.parse(p.state));
+                  refresh();
+                }}
+              >
+                <Icon name="grid" size={13} /> {p.name}
+                {activePreset?.id === p.id && <span className="mu"><Icon name="check" size={12} /></span>}
+              </button>
+            ))}
+            <div className="group">提示</div>
+            <div style={{ padding: '4px 10px', fontSize: 11, color: 'var(--text-3)' }}>在首页可将当前布局保存为新预设</div>
+          </div>
+        )}
+      </div>
       <span className="sb-item">
-        <span className="dot" /> Local · offline-first
+        <span className="dot" /> 本地已同步
       </span>
       <span className="sb-item">
-        <Icon name="puzzle" size={12} /> {loaded}/{plugins.length} plugins
+        <Icon name="puzzle" size={12} /> {loaded}/{plugins.length} 插件
       </span>
-      <span className="sb-item">
-        <Icon name="folder" size={12} /> {blobsMb} MB files
-      </span>
+      {bgCount > 0 && (
+        <span className="sb-item">
+          <Icon name="refresh" size={12} /> {bgCount} 个后台任务…
+        </span>
+      )}
       {failed.length > 0 && (
         <span className="sb-item" style={{ color: 'var(--danger)' }}>
-          <Icon name="zap" size={12} /> {failed.length} plugin error{failed.length > 1 ? 's' : ''}
+          <Icon name="zap" size={12} /> {failed.length} 个插件异常
         </span>
       )}
       <span className="spacer" />
-      <span className="sb-item">MPW v{APP_VERSION} · {kernel.ai.listProviders().find((p) => p.id === kernel.settings.get('ai.provider', 'demo'))?.label ?? 'demo'}</span>
+      <span className="sb-item">{APP_NAME} v{APP_VERSION}</span>
     </div>
   );
-}
-
-export const APP_VERSION = '0.1.0';
-
-import type { Kernel } from '@mpw/kernel';
-function blobSize(kernel: Kernel): number {
-  return (kernel.settings.get<number>('ui.blobBytes', -1) === -1 ? 0 : kernel.settings.get('ui.blobBytes', 0)) as number;
 }

@@ -21,7 +21,9 @@
     "react-dom": "^18.3.1",
     "sql.js": "^1.13.0",
     "@mpw/ui": "*",
-    "katex": "^0.16.11"
+    "katex": "^0.16.11",
+    "@mpw/plugin-tasks": "*",
+    "@mpw/plugin-projects": "*"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

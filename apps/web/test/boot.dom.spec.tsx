@@ -15,6 +15,8 @@ import writingPlugin from '@mpw/plugin-writing';
 import emailPlugin from '@mpw/plugin-email';
 import filesPlugin from '@mpw/plugin-files';
 import aiPlugin from '@mpw/plugin-ai';
+import tasksPlugin from '@mpw/plugin-tasks';
+import projectsPlugin from '@mpw/plugin-projects';
 import '../src/styles.css';
 
 beforeAll(() => {
@@ -35,7 +37,10 @@ async function bootKernel(): Promise<Kernel> {
     blobStore: new IndexedDbBlobStore(),
     secretStore: new WebCryptoSecretStore(),
   });
-  kernel.registerBuiltins([createHomePlugin(), notesPlugin, referencesPlugin, writingPlugin, emailPlugin, filesPlugin, aiPlugin]);
+  kernel.registerBuiltins([
+    createHomePlugin(), notesPlugin, referencesPlugin, writingPlugin,
+    emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin,
+  ]);
   const report = await kernel.boot();
   expect(report.failed).toEqual([]);
   return kernel;
@@ -45,6 +50,8 @@ describe('application boot (full shell over real adapters)', () => {
   it('opens the persisted SQLite database and boots every plugin', async () => {
     const kernel = await bootKernel();
     expect(kernel.isLoaded('mpw.home')).toBe(true);
+    expect(kernel.isLoaded('mpw.tasks')).toBe(true);
+    expect(kernel.isLoaded('mpw.projects')).toBe(true);
     expect(kernel.isLoaded('mpw.notes')).toBe(true);
     expect(kernel.isLoaded('mpw.email')).toBe(true);
     expect(kernel.widgetComponent('mpw.home/dashboard')).toBeTruthy();
@@ -72,9 +79,9 @@ describe('application boot (full shell over real adapters)', () => {
     expect(container.querySelector('.shell')).toBeTruthy();
     expect(container.querySelector('.sidebar')).toBeTruthy();
     expect(container.querySelector('.canvas')).toBeTruthy();
-    expect(text).toContain('Home Dashboard');
-    expect(text).toContain('AI Assistant');
-    expect(text).toContain('Search workspace');
+    expect(text).toContain('首页');
+    expect(text).toContain('AI 助手');
+    expect(container.querySelector('.topbar-search input')?.getAttribute('placeholder')).toContain('搜索文件、笔记、文献、邮件');
     expect(container.querySelectorAll('.side-item').length).toBeGreaterThanOrEqual(6);
     root.unmount();
   });

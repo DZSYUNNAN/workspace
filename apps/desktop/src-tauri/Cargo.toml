@@ -1,0 +1,21 @@
+[package]
+name = "modudesk"
+version = "0.2.0"
+description = "ModuDesk — 模块化个人工作台(Windows 桌面壳)"
+authors = ["DZSYUNNAN"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

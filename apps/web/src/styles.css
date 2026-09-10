@@ -384,3 +384,95 @@ input, select, textarea { font: inherit; color: inherit; }
 .stat-card .sc-num { font-size: 22px; font-weight: 700; }
 .stat-card .sc-label { color: var(--text-2); font-size: 11.5px; }
 .presets { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ===================== ModuDesk 设计稿风格(Phase 2) ===================== */
+.brand { display: flex; align-items: center; gap: 8px; padding-right: 6px; }
+.brand-logo {
+  width: 26px; height: 26px; border-radius: 7px; color: #fff;
+  background: linear-gradient(135deg, #4f63d2, #7c8cf8);
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.topbar-search { max-width: 520px; cursor: text; }
+.topbar-search input { flex: 1; border: none; outline: none; background: transparent; color: var(--text-2); font-size: 12.5px; cursor: pointer; width: 100%; }
+.bell-badge {
+  position: absolute; top: 0; right: -2px; background: var(--danger); color: #fff;
+  font-size: 9.5px; min-width: 15px; height: 15px; border-radius: 8px; padding: 0 4px;
+  display: flex; align-items: center; justify-content: center; font-weight: 700;
+}
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; flex: none;
+}
+.avatar:hover { filter: brightness(0.96); }
+
+/* 侧栏:图标 + 文字 */
+.sidebar { width: 128px; align-items: stretch; padding: 10px 8px; gap: 2px; }
+.sidebar .sep { width: auto; margin: 8px 6px; }
+.sidebar .side-item {
+  width: 100%; height: 34px; flex-direction: row; gap: 10px; padding: 0 12px;
+  justify-content: flex-start; border-radius: var(--radius-sm); font-size: 13px;
+}
+.sidebar .side-item span { white-space: nowrap; overflow: hidden; }
+.sidebar .side-item.active::before { left: -8px; }
+
+/* 状态栏 */
+.sb-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-2); padding: 1px 6px; border-radius: 4px; }
+.sb-btn:hover { background: var(--panel-2); color: var(--text); }
+
+/* AI 面板:问候 + 快捷指令 */
+.ai-greet { padding: 10px 4px; }
+.ai-greet-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.ai-greet-sub { font-size: 12px; color: var(--text-2); line-height: 1.6; margin-bottom: 14px; }
+.ai-quick { display: flex; flex-direction: column; gap: 6px; }
+.quick-btn {
+  display: flex; align-items: center; gap: 9px; padding: 8px 11px; font-size: 12.5px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel);
+  color: var(--text); text-align: left;
+}
+.quick-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.quick-btn:disabled { opacity: 0.5; }
+.send-btn { width: 38px; height: 38px; justify-content: center; padding: 0; }
+
+/* 任务勾选 */
+.task-check {
+  width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--border-strong);
+  display: inline-flex; align-items: center; justify-content: center; color: #fff; flex: none;
+}
+.task-check:hover { border-color: var(--accent); }
+.task-check.on { background: var(--accent); border-color: var(--accent); }
+
+/* LaTeX 多文件标签 */
+.latex-filetabs { display: flex; gap: 1px; padding: 4px 6px 0; border-bottom: 1px solid var(--border); flex: none; background: var(--panel); }
+.latex-filetabs .tab { height: 25px; }
+
+/* PDF 文本层(pdf.js)+ 高亮批注 */
+.pdf-page-host { position: relative; margin: 14px auto; width: fit-content; }
+.pdf-page-host canvas { display: block; box-shadow: var(--shadow); background: #fff; }
+.textLayer { position: absolute; inset: 0; overflow: hidden; line-height: 1; opacity: 1; }
+.textLayer span { position: absolute; color: transparent; cursor: text; white-space: pre; transform-origin: 0% 0%; }
+.textLayer ::selection { background: rgb(0 0 0 / 0.18); }
+.pdf-hl { position: absolute; mix-blend-mode: multiply; border-radius: 2px; pointer-events: auto; cursor: pointer; }
+
+/* 批注列表面板 */
+.anno-panel { width: 220px; flex: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.anno-panel .list { flex: 1; }
+.anno-row { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11.5px; cursor: pointer; }
+.anno-row:hover { background: var(--panel-2); }
+.anno-row .a-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--text-2); margin: 3px 0; }
+
+/* 笔记标签 */
+.note-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.note-tag { color: var(--accent); font-size: 11px; cursor: pointer; }
+
+/* 邮件行头像 */
+.mail-ava {
+  width: 26px; height: 26px; border-radius: 50%; flex: none; color: #fff; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; background: var(--accent);
+}
+.mail-row .mr-top { align-items: flex-start; }
+.mail-row.selected-outline { outline: 1.5px solid var(--accent); outline-offset: -1.5px; }
+
+@media (max-width: 900px) {
+  .sidebar { width: 46px; }
+  .sidebar .side-item span { display: none; }
+}

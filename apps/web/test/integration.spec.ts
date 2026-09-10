@@ -6,12 +6,14 @@ import writingPlugin from '@mpw/plugin-writing';
 import emailPlugin from '@mpw/plugin-email';
 import filesPlugin from '@mpw/plugin-files';
 import aiPlugin from '@mpw/plugin-ai';
+import tasksPlugin from '@mpw/plugin-tasks';
+import projectsPlugin from '@mpw/plugin-projects';
 
 /** Full-stack integration: boot every plugin on a real SQLite (in-memory). */
 async function bootAll(): Promise<Kernel> {
   const db = await openMemoryDb();
   const kernel = new Kernel({ db, blobStore: new MemoryBlobStore(), secretStore: new MemorySecretStore() });
-  kernel.registerBuiltins([notesPlugin, referencesPlugin, writingPlugin, emailPlugin, filesPlugin, aiPlugin]);
+  kernel.registerBuiltins([notesPlugin, referencesPlugin, writingPlugin, emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin]);
   const report = await kernel.boot();
   expect(report.failed).toEqual([]);
   return kernel;
@@ -28,6 +30,8 @@ describe('workspace + plugin system integration', () => {
         'mpw.notes/main',
         'mpw.writing/main',
         'mpw.files/main',
+        'mpw.tasks/main',
+        'mpw.projects/main',
       ])
     );
     expect(k.enabledWidgets().map((w) => w.key)).toContain('mpw.ai/chat');
@@ -47,10 +51,10 @@ describe('workspace + plugin system integration', () => {
 
     const groups = await k.search.searchAll('distillation');
     const labels = groups.map((g) => g.label);
-    expect(labels).toContain('Notes');
+    expect(labels).toContain('笔记');
 
     const refs = await k.search.searchAll('fusion');
-    for (const label of ['Notes', 'References', 'Email']) {
+    for (const label of ['笔记', '文献', '邮件']) {
       expect(refs.map((g) => g.label)).toContain(label);
     }
   });
@@ -85,9 +89,9 @@ describe('workspace + plugin system integration', () => {
     await k.disablePlugin('mpw.notes');
     expect(k.enabledRoutes().map((r) => r.key)).not.toContain('mpw.notes/main');
     const groups = await k.search.searchAll('distillation');
-    expect(groups.map((g) => g.label)).not.toContain('Notes');
+    expect(groups.map((g) => g.label)).not.toContain('笔记');
     // email (seeded demo mailbox) remains searchable
-    expect((await k.search.searchAll('registration')).map((g) => g.label)).toContain('Email');
+    expect((await k.search.searchAll('组会')).map((g) => g.label)).toContain('邮件');
     await k.enablePlugin('mpw.notes');
     expect(k.isLoaded('mpw.notes')).toBe(true);
   });
