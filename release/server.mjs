@@ -1,15 +1,38 @@
 /**
- * MPW — zero-dependency launcher for the prebuilt bundle (dist/).
- * Usage:  node server.mjs   →  http://localhost:8080
- * Requires only Node.js ≥ 18. No npm install needed.
+ * ModuDesk(MPW)— 零依赖启动器:只需 Node.js ≥ 18,无需 npm install。
+ *
+ * 用法:
+ *   node release/server.mjs              → 启动并自动打开浏览器(默认 8080)
+ *   PORT=3000 node release/server.mjs    → 指定端口
+ *   MPW_NO_OPEN=1 node release/server.mjs → 不自动打开浏览器
+ *
+ * 自动探测预构建产物位置(依次尝试):
+ *   1. release/dist          (旧布局)
+ *   2. ../apps-web-dist      (发布包 mpw-x.y.z.zip 布局)
+ *   3. ../apps/web/dist      (开发仓库布局)
  */
 import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(fileURLToPath(new URL('.', import.meta.url)), 'dist');
-const port = Number(process.env.PORT || 8080);
+const here = fileURLToPath(new URL('.', import.meta.url));
+const CANDIDATES = [
+  join(here, 'dist'),
+  resolve(here, '../apps-web-dist'),
+  resolve(here, '../apps/web/dist'),
+];
+const root = CANDIDATES.find((dir) => existsSync(join(dir, 'index.html')));
+if (!root) {
+  console.error('\n  [错误] 未找到预构建产物(index.html)。');
+  console.error('  已尝试以下目录:');
+  for (const dir of CANDIDATES) console.error(`    - ${dir}`);
+  console.error('\n  请先执行 npm run build 构建,或将发布包完整解压后重试。\n');
+  process.exit(1);
+}
+
+const basePort = Number(process.env.PORT || 8080);
 const host = process.env.HOST || '0.0.0.0';
 
 const MIME = {
@@ -33,35 +56,63 @@ const MIME = {
   '.md': 'text/markdown; charset=utf-8',
 };
 
-createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url ?? '/', 'http://localhost');
-    let pathname = decodeURIComponent(url.pathname);
-    if (pathname.endsWith('/')) pathname += 'index.html';
-    const file = normalize(join(root, pathname));
-    if (!file.startsWith(root + sep) && file !== root) {
-      res.writeHead(403).end('Forbidden');
-      return;
-    }
-    let data;
-    let served = file;
+function openBrowser(url) {
+  if (process.env.MPW_NO_OPEN) return;
+  import('node:child_process')
+    .then(({ spawn }) => {
+      const cmd = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+      const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
+      spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
+    })
+    .catch(() => {});
+}
+
+function startServer(port) {
+  const server = createServer(async (req, res) => {
     try {
-      data = await readFile(file);
-    } catch {
-      // SPA fallback: unknown routes serve the shell
-      served = join(root, 'index.html');
-      data = await readFile(served);
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      let pathname = decodeURIComponent(url.pathname);
+      if (pathname.endsWith('/')) pathname += 'index.html';
+      const file = normalize(join(root, pathname));
+      if (!file.startsWith(root + sep) && file !== root) {
+        res.writeHead(403).end('Forbidden');
+        return;
+      }
+      let data;
+      let served = file;
+      try {
+        data = await readFile(file);
+      } catch {
+        served = join(root, 'index.html');
+        data = await readFile(served);
+      }
+      res.writeHead(200, {
+        'content-type': MIME[extname(served).toLowerCase()] ?? 'application/octet-stream',
+        'cache-control': served.endsWith('index.html') ? 'no-cache' : 'public, max-age=3600',
+      });
+      res.end(data);
+    } catch (err) {
+      res.writeHead(500).end(`MPW server error: ${err instanceof Error ? err.message : err}`);
     }
-    res.writeHead(200, {
-      'content-type': MIME[extname(served).toLowerCase()] ?? 'application/octet-stream',
-      'cache-control': served.endsWith('index.html') ? 'no-cache' : 'public, max-age=3600',
-    });
-    res.end(data);
-  } catch (err) {
-    res.writeHead(500).end(`MPW server error: ${err instanceof Error ? err.message : err}`);
-  }
-}).listen(port, host, () => {
-  console.log(`\n  Modular Personal Workspace`);
-  console.log(`  ➜  http://localhost:${port}\n`);
-  console.log(`  Data is stored locally in your browser (IndexedDB). Press Ctrl+C to stop.`);
-});
+  });
+  server.on('error', (err) => {
+    if (/** @type {NodeJS.ErrnoException} */ (err).code === 'EADDRINUSE' && port < basePort + 20) {
+      console.error('  [提示] 端口被占用,正在尝试下一个端口…');
+      startServer(port + 1);
+    } else {
+      throw err;
+    }
+  });
+  server.listen(port, host, () => {
+    const url = `http://localhost:${port}`;
+    console.log('\n  ┌─────────────────────────────────────────┐');
+    console.log('  │   ModuDesk · 模块化个人工作台  v0.1.0   │');
+    console.log('  └─────────────────────────────────────────┘');
+    console.log(`\n  ➜  ${url}(浏览器应已自动打开,若无请手动访问)`);
+    console.log('     数据保存在本机浏览器中,不会上传到任何服务器。');
+    console.log('     停止:按 Ctrl+C 或直接关闭本窗口。\n');
+    openBrowser(url);
+  });
+}
+
+startServer(basePort);
