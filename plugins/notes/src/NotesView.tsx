@@ -112,10 +112,10 @@ export function NotesView(props: {
     <div className="notes-split">
       <div className="notes-side" style={compact ? { width: 150 } : undefined}>
         <div className="widget-toolbar" style={{ padding: 6 }}>
-          <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="筛选…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           <button
             className="btn sm primary"
-            title="New note"
+            title="新建笔记"
             onClick={async () => {
               const n = await createNote(ctx, 'Untitled note');
               await reload();
@@ -133,7 +133,7 @@ export function NotesView(props: {
               <span className="lr-meta">{new Date(n.updated_at).toLocaleDateString()}</span>
             </button>
           ))}
-          {filtered.length === 0 && <div className="empty-state">No notes yet</div>}
+          {filtered.length === 0 && <div className="empty-state">暂无笔记</div>}
         </div>
       </div>
 
@@ -186,7 +186,7 @@ export function NotesView(props: {
                     const text = ta.value.slice(ta.selectionStart, ta.selectionEnd);
                     setSelMenu(text.trim().length >= 3 ? { text } : null);
                   }}
-                  placeholder="Markdown… use [[Note Name]] to link notes, $x^2$ for math."
+                  placeholder="Markdown…用 [[笔记名]] 链接笔记,$x^2$ 插入公式。"
                 />
               )}
               {mode !== 'edit' && (
@@ -205,13 +205,13 @@ export function NotesView(props: {
               <input
                 className="input"
                 style={{ flex: 1, fontSize: 11.5, padding: '2px 8px' }}
-                placeholder="tags, comma separated"
+                placeholder="标签(逗号分隔)"
                 value={draft.tags}
                 onChange={(e) => setDraft((d) => ({ ...d, tags: e.target.value }))}
               />
               {linksBack.length > 0 && (
                 <span title={linksBack.map((b) => b.title).join(', ')}>
-                  <Icon name="link" size={11} /> {linksBack.length} backlink{linksBack.length > 1 ? 's' : ''}
+                  <Icon name="link" size={11} /> {linksBack.length} 条反向链接
                 </span>
               )}
             </div>
@@ -229,8 +229,8 @@ export function NotesView(props: {
         ) : (
           <div className="empty-state">
             <Icon name="note" size={26} />
-            <div>Select or create a note</div>
-            <div style={{ fontSize: 11.5 }}>Markdown · [[WikiLinks]] · math · tags · backlinks</div>
+            <div>选择或新建笔记</div>
+            <div style={{ fontSize: 11.5 }}>Markdown · [[双向链接]] · 公式 · 标签 · 反向链接</div>
           </div>
         )}
       </div>

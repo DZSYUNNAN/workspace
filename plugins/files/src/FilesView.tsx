@@ -22,7 +22,7 @@ async function listChildren(ctx: PluginContext, parent: string | null): Promise<
 
 export function FilesView(props: { ctx: PluginContext; compact?: boolean }): React.ReactElement {
   const { ctx } = props;
-  const [cwd, setCwd] = useState<{ id: string | null; name: string }>({ id: null, name: 'Home' });
+  const [cwd, setCwd] = useState<{ id: string | null; name: string }>({ id: null, name: '首页' });
   const [crumbs, setCrumbs] = useState<{ id: string | null; name: string }[]>([{ id: null, name: 'Home' }]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -45,7 +45,7 @@ export function FilesView(props: { ctx: PluginContext; compact?: boolean }): Rea
       );
     }
     ctx.events.emit('files:changed', {});
-    ctx.ui.notify(`Uploaded ${files.length} file${files.length > 1 ? 's' : ''}`, 'success');
+    ctx.ui.notify(`已上传 ${files.length} 个文件`, 'success');
   };
 
   const download = async (e: Entry): Promise<void> => {
@@ -95,7 +95,7 @@ export function FilesView(props: { ctx: PluginContext; compact?: boolean }): Rea
         <button
           className="btn sm"
           onClick={async () => {
-            const name = window.prompt('Folder name');
+            const name = window.prompt('文件夹名称');
             if (!name) return;
             await ctx.storage.sql.exec(
               'INSERT INTO p_files_entries (id, parent_id, name, kind, mime, size, blob_ref, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?)',
@@ -104,10 +104,10 @@ export function FilesView(props: { ctx: PluginContext; compact?: boolean }): Rea
             ctx.events.emit('files:changed', {});
           }}
         >
-          <Icon name="folder" size={12} /> New folder
+          <Icon name="folder" size={12} /> 新建文件夹
         </button>
         <button className="btn sm primary" onClick={() => fileInput.current?.click()}>
-          <Icon name="upload" size={12} /> Upload
+          <Icon name="upload" size={12} /> 上传
         </button>
         <input
           ref={fileInput}
@@ -123,8 +123,8 @@ export function FilesView(props: { ctx: PluginContext; compact?: boolean }): Rea
       {entries.length === 0 ? (
         <div className="empty-state">
           <Icon name="folder" size={24} />
-          <div>Empty folder</div>
-          <div style={{ fontSize: 11 }}>Upload files or create folders — stored locally in the blob store</div>
+          <div>空文件夹</div>
+          <div style={{ fontSize: 11 }}>上传文件或新建文件夹 — 本地加密存储,离线可用</div>
         </div>
       ) : (
         <div className="files-grid" style={props.compact ? { gridTemplateColumns: '1fr' } : undefined}>
@@ -133,16 +133,16 @@ export function FilesView(props: { ctx: PluginContext; compact?: boolean }): Rea
               <Icon name={e.kind === 'dir' ? 'folder' : e.mime?.includes('pdf') ? 'pdf' : 'file'} size={16} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="fc-name">{e.name}</div>
-                <div className="fc-sub">{e.kind === 'dir' ? 'folder' : `${(e.size / 1024).toFixed(1)} KB`}</div>
+                <div className="fc-sub">{e.kind === 'dir' ? '文件夹' : `${(e.size / 1024).toFixed(1)} KB`}</div>
               </div>
               {e.kind === 'file' && (
                 <>
-                  <button className="icon-btn" title="Download" onClick={(ev) => { ev.stopPropagation(); void download(e); }}>
+                  <button className="icon-btn" title="下载" onClick={(ev) => { ev.stopPropagation(); void download(e); }}>
                     <Icon name="download" size={13} />
                   </button>
                   <button
                     className="icon-btn danger"
-                    title="Delete"
+                    title="删除"
                     onClick={async (ev) => {
                       ev.stopPropagation();
                       await ctx.storage.sql.exec('UPDATE p_files_entries SET deleted_at = ?, updated_at = ? WHERE id = ?', [nowMs(), nowMs(), e.id]);

@@ -10,18 +10,18 @@ export default definePlugin({
     name: 'Files',
     version: '0.1.0',
     author: 'MPW',
-    description: 'Virtual file store: upload, folders, download, delete. Content lives in the blob store; metadata in your local database.',
+    description: '虚拟文件管理:上传、文件夹、下载、删除。文件内容存于本地文件库,元数据存于本地数据库。',
     icon: 'folder',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'blobs'],
     contributions: {
-      widgets: [{ id: 'browser', title: 'Files', icon: 'folder', defaultArea: 'left', minW: 220 }],
-      routes: [{ id: 'main', title: 'Files', icon: 'folder', showInSidebar: true, order: 50 }],
-      commands: [{ id: 'upload', title: 'Files: Upload files…', category: 'Files' }],
+      widgets: [{ id: 'browser', title: '文件', icon: 'folder', defaultArea: 'left', minW: 220 }],
+      routes: [{ id: 'main', title: '文件', icon: 'folder', showInSidebar: true, order: 50 }],
+      commands: [{ id: 'upload', title: '文件: 上传文件…', category: '文件' }],
       searchProviders: [
         {
           id: 'files',
-          label: 'Files',
+          label: '文件',
           search: async (q, limit) => {
             if (!ctxRef) return [];
             const rows = await ctxRef.storage.sql.all<{ id: string; name: string; kind: string; mime: string; size: number }>(
@@ -63,16 +63,16 @@ export default definePlugin({
       const bytes = files.reduce((s, f) => s + (f.size ?? 0), 0);
       ctx.events.emit('plugin:stats', {
         pluginId: 'mpw.files',
-        name: 'Files',
+        name: '文件',
         stats: [
-          { label: 'files', count: files.length, icon: 'file' },
-          { label: 'MB stored', count: Math.round(bytes / 1024 / 1024), icon: 'folder' },
+          { label: '文件', count: files.length, icon: 'file' },
+          { label: '已存 MB', count: Math.round(bytes / 1024 / 1024), icon: 'folder' },
         ],
       });
     };
     ctx.events.on('files:changed', () => void emitStats());
     await emitStats();
-    ctx.log.info('files plugin ready');
+    ctx.log.info('文件插件已就绪');
   },
 
   async deactivate() {

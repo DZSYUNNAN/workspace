@@ -6,25 +6,26 @@ import { LibraryView } from './LibraryView';
 
 let ctxRef: PluginContext | null = null;
 let selectedId: string | null = null;
+let lastHighlight = ''; // 最近一次高亮的原文(AI「翻译高亮段落」上下文)
 
 export default definePlugin({
   manifest: {
     id: 'mpw.references',
-    name: 'References',
-    version: '0.1.0',
-    author: 'MPW',
-    description: 'Literature management: BibTeX/RIS/DOI import, collections, tags, PDF reader, citations in BibTeX/IEEE/APA/GB-T 7714.',
+    name: '文献',
+    version: '0.2.0',
+    author: 'ModuDesk',
+    description: '科研文献管理:BibTeX / RIS / DOI 导入、集合、标签、PDF 阅读与高亮批注持久化,引文输出 IEEE / APA / GB-T 7714 / BibTeX。',
     icon: 'book',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'blobs', 'network'],
     contributions: {
-      widgets: [{ id: 'library', title: 'Reference Library', icon: 'book', defaultArea: 'center', minW: 300 }],
-      routes: [{ id: 'main', title: 'References', icon: 'book', showInSidebar: true, order: 20 }],
-      commands: [{ id: 'import', title: 'References: Import…', category: 'References' }],
+      widgets: [{ id: 'library', title: '文献库', icon: 'book', defaultArea: 'center', minW: 300 }],
+      routes: [{ id: 'main', title: '文献', icon: 'book', showInSidebar: true, order: 20 }],
+      commands: [{ id: 'import', title: '文献: 导入…', category: '文献' }],
       searchProviders: [
         {
           id: 'references',
-          label: 'References',
+          label: '文献',
           search: async (q, limit) => {
             if (!ctxRef) return [];
             const { searchRefs } = await import('./store');
@@ -44,7 +45,7 @@ export default definePlugin({
       contextProviders: [
         {
           id: 'selected',
-          label: 'Selected reference',
+          label: '当前文献',
           getContext: async () => {
             if (!ctxRef || !selectedId) return null;
             const { getRef } = await import('./store');
@@ -52,11 +53,23 @@ export default definePlugin({
             if (!r) return null;
             return {
               id: 'selected',
-              label: `Reference: ${truncate(r.title, 40)}`,
+              label: `文献: ${truncate(r.title, 40)}`,
               kind: 'metadata' as const,
-              content: `Title: ${r.title}\nAuthors: ${parseAuthors(r.authors)
-                .map((a) => `${a.given ?? ''} ${a.family ?? ''}`.trim())
-                .join('; ')}\nVenue: ${r.venue}\nYear: ${r.year ?? ''}\nDOI: ${r.doi}\n\nAbstract: ${r.abstract}`,
+              content: `标题: ${r.title}\n作者: ${parseAuthors(r.authors).map((a) => `${a.given ?? ''} ${a.family ?? ''}`.trim()).join('; ')}\n期刊/会议: ${r.venue}\n年份: ${r.year ?? ''}\nDOI: ${r.doi}\n\n摘要: ${r.abstract}`,
+              source: 'mpw.references',
+            };
+          },
+        },
+        {
+          id: 'highlight',
+          label: 'PDF 高亮段落',
+          getContext: async () => {
+            if (!lastHighlight) return null;
+            return {
+              id: 'highlight',
+              label: '高亮段落',
+              kind: 'selection' as const,
+              content: lastHighlight,
               source: 'mpw.references',
             };
           },
@@ -83,20 +96,24 @@ export default definePlugin({
       ctx.events.emit('refs:openImport', {});
     });
 
+    ctx.events.on('refs:annotationMade', (payload) => {
+      lastHighlight = (payload as { text?: string })?.text ?? '';
+    });
+
     const emitStats = async (): Promise<void> => {
       const refs = await listRefs(ctx);
       ctx.events.emit('plugin:stats', {
         pluginId: 'mpw.references',
-        name: 'References',
+        name: '文献',
         stats: [
-          { label: 'references', count: refs.length, icon: 'book' },
-          { label: 'PDFs', count: refs.filter((r) => r.blob_ref).length, icon: 'pdf' },
+          { label: '文献', count: refs.length, icon: 'book' },
+          { label: 'PDF 附件', count: refs.filter((r) => r.blob_ref).length, icon: 'pdf' },
         ],
       });
     };
     ctx.events.on('refs:changed', () => void emitStats());
     await emitStats();
-    ctx.log.info('references plugin ready');
+    ctx.log.info('文献插件已就绪');
   },
 
   async deactivate() {

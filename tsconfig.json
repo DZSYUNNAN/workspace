@@ -53,6 +53,12 @@
       ],
       "@mpw/ui": [
         "packages/ui/src/index.tsx"
+      ],
+      "@mpw/plugin-tasks": [
+        "plugins/tasks/src/index.ts"
+      ],
+      "@mpw/plugin-projects": [
+        "plugins/projects/src/index.ts"
       ]
     }
   },

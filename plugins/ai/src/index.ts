@@ -15,22 +15,22 @@ export default definePlugin({
     name: 'AI Assistant',
     version: '0.1.0',
     author: 'MPW',
-    description: 'Provider-agnostic AI: chat widget, selection actions (polish, rewrite, translate, summarize, generate LaTeX/tables/citations) with workspace context.',
+    description: '多供应商 AI:聊天模块、选中即译/润色/改写/总结/生成 LaTeX 表格等动作,支持工作台上下文。',
     icon: 'sparkles',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'network', 'credentials', 'ai:invoke'],
     contributions: {
-      widgets: [{ id: 'chat', title: 'AI Chat', icon: 'sparkles', defaultArea: 'right', minW: 260 }],
+      widgets: [{ id: 'chat', title: 'AI 对话', icon: 'sparkles', defaultArea: 'right', minW: 260 }],
       commands: [
-        { id: 'summarizeSelection', title: 'AI: Summarize selection', category: 'AI' },
+        { id: 'summarizeSelection', title: 'AI: 总结选中内容', category: 'AI' },
       ],
       settings: [
         {
           key: 'temperature',
-          label: 'Creativity (temperature)',
+          label: '创造性(temperature)',
           type: 'number',
           default: 0.7,
-          hint: '0 = deterministic, 1 = creative',
+          hint: '0 = 严谨,1 = 更有创造性',
         },
       ],
       aiActions: [
@@ -61,16 +61,16 @@ export default definePlugin({
     ctx.commands.register('mpw.ai.summarizeSelection', async () => {
       const sel = window.getSelection()?.toString() ?? '';
       if (!sel.trim()) {
-        ctx.ui.notify('Select some text first', 'warn');
+        ctx.ui.notify('请先选中一段文字', 'warn');
         return;
       }
       const result = await ctx.ai.run(sel, { system: 'Summarize this text.' });
-      ctx.ui.notify('Summary ready — see AI panel', 'success');
+      ctx.ui.notify('总结完成 — 见 AI 助手面板', 'success');
       ctx.events.emit('ai:result', { action: 'summarize', text: result.text });
       return result.text;
     });
 
-    ctx.log.info('ai plugin ready');
+    ctx.log.info('AI 插件已就绪');
   },
 
   async deactivate() {

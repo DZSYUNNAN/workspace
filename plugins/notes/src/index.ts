@@ -17,8 +17,8 @@ async function emitStats(ctx: PluginContext): Promise<void> {
     pluginId: 'mpw.notes',
     name: 'Notes',
     stats: [
-      { label: 'notes', count: notes.length, icon: 'note' },
-      { label: 'links', count: links, icon: 'link' },
+      { label: '笔记', count: notes.length, icon: 'note' },
+      { label: '双向链接', count: links, icon: 'link' },
     ],
   });
 }
@@ -29,20 +29,20 @@ export default definePlugin({
     name: 'Notes',
     version: '0.1.0',
     author: 'MPW',
-    description: 'Markdown knowledge base: folders, tags, [[WikiLinks]], backlinks, math, full-text search.',
+    description: 'Markdown 知识库:文件夹、标签、[[双向链接]]、反向链接、数学公式、全文检索,可链接文献 / 邮件 / 文档。',
     icon: 'note',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'ai:invoke'],
     contributions: {
-      widgets: [{ id: 'list', title: 'Notes', icon: 'note', defaultArea: 'left', minW: 180, minH: 160 }],
-      routes: [{ id: 'main', title: 'Notes', icon: 'note', showInSidebar: true, order: 30 }],
+      widgets: [{ id: 'list', title: '笔记', icon: 'note', defaultArea: 'left', minW: 180, minH: 160 }],
+      routes: [{ id: 'main', title: '笔记', icon: 'note', showInSidebar: true, order: 30 }],
       commands: [
-        { id: 'newNote', title: 'Notes: New note', category: 'Notes', shortcut: 'Ctrl+Alt+N' },
+        { id: 'newNote', title: '笔记: 新建笔记', category: '笔记', shortcut: 'Ctrl+Alt+N' },
       ],
       searchProviders: [
         {
           id: 'notes',
-          label: 'Notes',
+          label: '笔记',
           search: async (q, limit) => {
             if (!ctxRef) return [];
             const rows = await searchNotes(ctxRef, q, limit);
@@ -61,7 +61,7 @@ export default definePlugin({
       contextProviders: [
         {
           id: 'current',
-          label: 'Current note',
+          label: '当前笔记',
           getContext: async () => {
             if (!ctxRef || !activeNoteId) return null;
             const note = (await listNotes(ctxRef)).find((n) => n.id === activeNoteId);
@@ -91,7 +91,7 @@ export default definePlugin({
       const note = await createNote(ctx, 'Untitled note');
       activeNoteId = note.id;
       ctx.events.emit('notes:changed', { id: note.id });
-      ctx.ui.notify('Note created', 'success');
+      ctx.ui.notify('笔记已创建', 'success');
       return note.id;
     });
 
@@ -99,7 +99,7 @@ export default definePlugin({
       void emitStats(ctx);
     });
     await emitStats(ctx);
-    ctx.log.info('notes plugin ready');
+    ctx.log.info('笔记插件已就绪');
   },
 
   async deactivate() {

@@ -99,7 +99,7 @@ export function LibraryView(props: {
       setCopied(style);
       window.setTimeout(() => setCopied(null), 1500);
     } catch {
-      ctx.ui.notify('Clipboard unavailable in this browser', 'warn');
+      ctx.ui.notify('当前浏览器剪贴板不可用', 'warn');
     }
   };
 
@@ -109,7 +109,7 @@ export function LibraryView(props: {
     const blob = await ctx.blobs.put(`references/${file.name}`, bytes, 'application/pdf');
     await updateRef(ctx, selected.id, { blob_ref: blob.ref, file_name: file.name });
     ctx.events.emit('refs:changed', { id: selected.id });
-    ctx.ui.notify(`Attached ${file.name}`, 'success');
+    ctx.ui.notify(`已附加 ${file.name}`, 'success');
   };
 
   return (
@@ -117,14 +117,14 @@ export function LibraryView(props: {
       {/* library list */}
       <div className="notes-side" style={props.compact ? { width: 170 } : undefined}>
         <div className="widget-toolbar" style={{ padding: 6 }}>
-          <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="Search library…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <button className="btn sm primary" title="Import" onClick={() => setImportOpen(true)}>
+          <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="搜索文献库…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <button className="btn sm primary" title="导入文献" onClick={() => setImportOpen(true)}>
             <Icon name="plus" size={12} />
           </button>
         </div>
         <div style={{ padding: '2px 6px' }}>
           <button className={`mail-folder-btn${collectionId === null ? ' active' : ''}`} style={{ width: '100%' }} onClick={() => setCollectionId(null)}>
-            <Icon name="book" size={13} /> All ({refs.length})
+            <Icon name="book" size={13} /> 全部 ({refs.length})
           </button>
           {collections.map((c) => (
             <button key={c.id} className={`mail-folder-btn${collectionId === c.id ? ' active' : ''}`} style={{ width: '100%' }} onClick={() => setCollectionId(c.id)}>
@@ -135,14 +135,14 @@ export function LibraryView(props: {
             className="mail-folder-btn"
             style={{ width: '100%', color: 'var(--text-3)' }}
             onClick={async () => {
-              const name = window.prompt('New collection name');
+              const name = window.prompt('新建文献集合名称');
               if (name) {
                 await createCollection(ctx, name);
                 await reload();
               }
             }}
           >
-            <Icon name="plus" size={13} /> New collection
+            <Icon name="plus" size={13} /> 新建集合
           </button>
         </div>
         <div className="list">
@@ -155,7 +155,7 @@ export function LibraryView(props: {
               </span>
             </button>
           ))}
-          {filtered.length === 0 && <div className="empty-state">Library is empty<br /><span style={{ fontSize: 11 }}>Import BibTeX, RIS, DOI or add manually</span></div>}
+          {filtered.length === 0 && <div className="empty-state">文献库还是空的<br /><span style={{ fontSize: 11 }}>支持导入 BibTeX / RIS / DOI,或手动添加</span></div>}
         </div>
       </div>
 
@@ -166,7 +166,7 @@ export function LibraryView(props: {
             {readerOpen && selected.blob_ref ? (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
                 <button className="btn sm" style={{ alignSelf: 'flex-start', marginBottom: 8 }} onClick={() => setReaderOpen(false)}>
-                  ← Back to details
+                  ← 返回详情
                 </button>
                 <PdfReader ctx={ctx} blobRef={selected.blob_ref} fileName={selected.file_name} />
               </div>
@@ -185,7 +185,7 @@ export function LibraryView(props: {
                   <input
                     className="input"
                     style={{ fontSize: 11, padding: '1px 8px', width: 110 }}
-                    placeholder="+ tag"
+                    placeholder="+ 标签"
                     onKeyDown={async (e) => {
                       if (e.key !== 'Enter') return;
                       const v = (e.target as HTMLInputElement).value.trim();
@@ -204,11 +204,11 @@ export function LibraryView(props: {
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
                   {selected.blob_ref ? (
                     <button className="btn sm primary" onClick={() => setReaderOpen(true)}>
-                      <Icon name="pdf" size={13} /> Open PDF reader
+                      <Icon name="pdf" size={13} /> 打开 PDF 阅读
                     </button>
                   ) : (
                     <button className="btn sm" onClick={() => fileInput.current?.click()}>
-                      <Icon name="upload" size={13} /> Attach PDF
+                      <Icon name="upload" size={13} /> 附件 PDF
                     </button>
                   )}
                   <select
@@ -219,11 +219,11 @@ export function LibraryView(props: {
                       const cid = e.target.value;
                       if (cid) {
                         await addToCollection(ctx, cid, selected.id);
-                        ctx.ui.notify('Added to collection', 'success');
+                        ctx.ui.notify('已加入集合', 'success');
                       }
                     }}
                   >
-                    <option value="">Add to collection…</option>
+                    <option value="">加入集合…</option>
                     {collections.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
@@ -245,11 +245,11 @@ export function LibraryView(props: {
                   e.target.value = '';
                 }} />
 
-                <h2 style={{ fontSize: 13, color: 'var(--text-2)' }}>Cite</h2>
+                <h2 style={{ fontSize: 13, color: 'var(--text-2)' }}>引用格式</h2>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                   {(['bibtex', 'ieee', 'apa', 'gbt7714'] as CitationStyle[]).map((s) => (
                     <button key={s} className="btn sm" onClick={() => void copy(s)}>
-                      {copied === s ? 'Copied ✓' : s.toUpperCase()}
+                      {copied === s ? '已复制 ✓' : s.toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -257,11 +257,11 @@ export function LibraryView(props: {
                 <div style={{ height: 8 }} />
                 <div className="cite-block">{formatCitation('gbt7714', citation(selected))}</div>
 
-                <h2 style={{ fontSize: 13, color: 'var(--text-2)' }}>Notes</h2>
+                <h2 style={{ fontSize: 13, color: 'var(--text-2)' }}>阅读笔记</h2>
                 <textarea
                   className="input"
                   style={{ width: '100%', minHeight: 90, resize: 'vertical' }}
-                  placeholder="Reading notes…"
+                  placeholder="阅读笔记…"
                   defaultValue={selected.notes}
                   onBlur={async (e) => {
                     if (e.target.value !== selected.notes) {
@@ -276,8 +276,8 @@ export function LibraryView(props: {
         ) : (
           <div className="empty-state">
             <Icon name="book" size={26} />
-            <div>Select a reference</div>
-            <div style={{ fontSize: 11.5 }}>Metadata · citations (BibTeX/IEEE/APA/GB-T 7714) · PDF reader · notes</div>
+            <div>选择一篇文献</div>
+            <div style={{ fontSize: 11.5 }}>元数据 · 引文(BibTeX/IEEE/APA/GB-T 7714)· PDF 阅读 · 笔记</div>
           </div>
         )}
       </div>
@@ -315,18 +315,18 @@ function ImportDialog(props: {
       const ids: string[] = [];
       if (tab === 'bibtex') {
         const parsed = parseBibtex(text);
-        if (parsed.length === 0) throw new Error('No BibTeX entries found');
+        if (parsed.length === 0) throw new Error('未找到 BibTeX 条目');
         for (const raw of parsed) ids.push((await insertRef(ctx, raw)).id);
       } else if (tab === 'ris') {
         const parsed = parseRis(text);
-        if (parsed.length === 0) throw new Error('No RIS records found');
+        if (parsed.length === 0) throw new Error('未找到 RIS 记录');
         for (const raw of parsed) ids.push((await insertRef(ctx, raw)).id);
       } else if (tab === 'doi') {
         const dois = text.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
         for (const doi of dois) ids.push((await insertRef(ctx, await fetchDoi(doi))).id);
       } else {
         const title = text.trim();
-        if (!title) throw new Error('Enter a title');
+        if (!title) throw new Error('请输入标题');
         const raw = {
           entryType: 'article', citationKey: title.toLowerCase().split(/\s+/)[0] ?? 'ref',
           title, authors: [], venue: '', year: null, doi: '', abstract: '', keywords: [],
@@ -335,7 +335,7 @@ function ImportDialog(props: {
         ids.push((await insertRef(ctx, raw)).id);
       }
       ctx.events.emit('refs:changed', {});
-      ctx.ui.notify(`Imported ${ids.length} reference${ids.length > 1 ? 's' : ''}`, 'success');
+      ctx.ui.notify(`已导入 ${ids.length} 篇文献`, 'success');
       await props.onImported(ids);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -348,7 +348,7 @@ function ImportDialog(props: {
     <div className="compose" onPointerDown={(e) => e.target === e.currentTarget && props.onClose()}>
       <div className="compose-card">
         <div className="widget-toolbar">
-          <b>Import references</b>
+          <b>导入文献</b>
           <span style={{ flex: 1 }} />
           <button className="icon-btn" onClick={props.onClose}><Icon name="x" size={14} /></button>
         </div>
@@ -356,7 +356,7 @@ function ImportDialog(props: {
           <div style={{ display: 'flex', gap: 6 }}>
             {(['bibtex', 'ris', 'doi', 'manual'] as ImportTab[]).map((t) => (
               <button key={t} className={`btn sm${tab === t ? ' primary' : ''}`} onClick={() => setTab(t)}>
-                {t === 'doi' ? 'DOI (online)' : t === 'manual' ? 'Manual' : t.toUpperCase()}
+                {t === 'doi' ? 'DOI(联网)' : t === 'manual' ? '手动添加' : t.toUpperCase()}
               </button>
             ))}
           </div>
@@ -368,20 +368,20 @@ function ImportDialog(props: {
                 tab === 'bibtex'
                   ? '@article{key, title = {…}, author = {…}, year = {2023}}'
                   : tab === 'ris'
-                    ? 'TY  - JOUR\nTI  - Title\nAU  - Author\nER  -'
+                    ? 'TY  - JOUR\nTI  - 标题\nAU  - 作者\nER  -'
                     : '10.1038/s41586-021-03819-2'
               }
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
           ) : (
-            <input className="input" placeholder="Reference title" value={text} onChange={(e) => setText(e.target.value)} />
+            <input className="input" placeholder="文献标题" value={text} onChange={(e) => setText(e.target.value)} />
           )}
           {error && <div style={{ color: 'var(--danger)', fontSize: 12 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="btn" onClick={props.onClose}>Cancel</button>
+            <button className="btn" onClick={props.onClose}>取消</button>
             <button className="btn primary" disabled={busy || !text.trim()} onClick={() => void doImport()}>
-              {busy ? 'Importing…' : 'Import'}
+              {busy ? '导入中…' : '导入'}
             </button>
           </div>
         </div>

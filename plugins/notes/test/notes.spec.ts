@@ -64,7 +64,7 @@ describe('notes plugin', () => {
     const ctx = (kernel as unknown as { createContext(id: string): PluginContext }).createContext('mpw.notes');
     await createNote(ctx, 'Knowledge Distillation survey', 'distillation methods for vision transformers');
     const groups = await kernel.search.searchAll('distillation');
-    const notesGroup = groups.find((g) => g.label === 'Notes');
+    const notesGroup = groups.find((g) => g.label === '笔记');
     expect(notesGroup?.hits.length).toBeGreaterThan(0);
     expect(notesGroup?.hits[0]?.title).toBe('Knowledge Distillation survey');
   });

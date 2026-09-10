@@ -10,24 +10,31 @@ let activeDocId: string | null = null;
 export default definePlugin({
   manifest: {
     id: 'mpw.writing',
-    name: 'Writing',
-    version: '0.1.0',
-    author: 'MPW',
-    description: 'Two writing environments: Mode A (Word-like rich text, .docx export) and Mode B (LaTeX with live preview).',
+    name: '写作',
+    version: '0.2.0',
+    author: 'ModuDesk',
+    description: '双写作环境:模式 A(类 Word 富文本,.docx 导出)与模式 B(LaTeX 工程多文件 + 实时预览 + 本地编译)。',
     icon: 'pen',
     minCoreVersion: '^0.1.0',
-    permissions: ['storage', 'ai:invoke'],
+    permissions: ['storage', 'ai:invoke', 'native'],
     contributions: {
-      widgets: [{ id: 'editor', title: 'Writing', icon: 'pen', defaultArea: 'center', minW: 340 }],
-      routes: [{ id: 'main', title: 'Writing', icon: 'pen', showInSidebar: true, order: 40 }],
+      widgets: [{ id: 'editor', title: '写作', icon: 'pen', defaultArea: 'center', minW: 340 }],
+      routes: [{ id: 'main', title: '写作', icon: 'pen', showInSidebar: true, order: 40 }],
       commands: [
-        { id: 'newRichDoc', title: 'Writing: New rich document', category: 'Writing' },
-        { id: 'newLatexDoc', title: 'Writing: New LaTeX document', category: 'Writing' },
+        { id: 'newRichDoc', title: '写作: 新建富文本文档', category: '写作' },
+        { id: 'newLatexDoc', title: '写作: 新建 LaTeX 工程', category: '写作' },
+      ],
+      settings: [
+        { key: 'engine', label: 'LaTeX 编译引擎', type: 'select', default: 'xelatex', options: [
+          { value: 'xelatex', label: 'XeLaTeX(推荐中文)' },
+          { value: 'lualatex', label: 'LuaLaTeX' },
+          { value: 'pdflatex', label: 'pdfLaTeX' },
+        ] },
       ],
       searchProviders: [
         {
           id: 'documents',
-          label: 'Documents',
+          label: '文档',
           search: async (q, limit) => {
             if (!ctxRef) return [];
             const rows = await searchDocs(ctxRef, q, limit);
@@ -46,7 +53,7 @@ export default definePlugin({
       contextProviders: [
         {
           id: 'current',
-          label: 'Current document',
+          label: '当前文档',
           getContext: async () => {
             if (!ctxRef || !activeDocId) return null;
             const docs = await listDocs(ctxRef);
@@ -78,14 +85,14 @@ export default definePlugin({
 
     ctx.commands.register('mpw.writing.newRichDoc', async () => {
       const { createDoc } = await import('./store');
-      const d = await createDoc(ctx, 'Untitled document', 'rich');
+      const d = await createDoc(ctx, '未命名文档', 'rich');
       ctx.events.emit('docs:changed', { id: d.id });
       ctx.ui.openWidget('mpw.writing/editor');
       return d.id;
     });
     ctx.commands.register('mpw.writing.newLatexDoc', async () => {
       const { createDoc } = await import('./store');
-      const d = await createDoc(ctx, 'Untitled.tex', 'latex');
+      const d = await createDoc(ctx, '未命名.tex', 'latex');
       ctx.events.emit('docs:changed', { id: d.id });
       ctx.ui.openWidget('mpw.writing/editor');
       return d.id;
@@ -97,14 +104,14 @@ export default definePlugin({
         pluginId: 'mpw.writing',
         name: 'Writing',
         stats: [
-          { label: 'documents', count: docs.length, icon: 'pen' },
-          { label: 'LaTeX', count: docs.filter((d) => d.mode === 'latex').length, icon: 'code' },
+          { label: '文档', count: docs.length, icon: 'pen' },
+          { label: 'LaTeX 工程', count: docs.filter((d) => d.mode === 'latex').length, icon: 'code' },
         ],
       });
     };
     ctx.events.on('docs:changed', () => void emitStats());
     await emitStats();
-    ctx.log.info('writing plugin ready');
+    ctx.log.info('写作插件已就绪');
   },
 
   async deactivate() {

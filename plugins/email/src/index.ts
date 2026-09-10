@@ -4,26 +4,28 @@ import { truncate } from '@mpw/shared';
 import { initSchema, listAccounts, listMessages, searchMessages, seedDemoData } from './store';
 
 let ctxRef: PluginContext | null = null;
-let openMessageId: string | null = null;
 
 export default definePlugin({
   manifest: {
     id: 'mpw.email',
-    name: 'Email',
-    version: '0.1.0',
-    author: 'MPW',
-    description: 'Unified work email: multiple accounts, folders, compose, star, labels, search. IMAP/SMTP + OAuth2 adapters land via the MailTransport interface.',
+    name: '邮箱',
+    version: '0.2.0',
+    author: 'ModuDesk',
+    description: '统一工作邮箱:多账户、收件箱 / 已发送 / 草稿 / 星标 / 归档,IMAP·SMTP·OAuth2 传输层就绪,内置中文科研场景演示数据。',
     icon: 'mail',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'network', 'credentials', 'ai:invoke'],
     contributions: {
-      widgets: [{ id: 'client', title: 'Email', icon: 'mail', defaultArea: 'center', minW: 420 }],
-      routes: [{ id: 'main', title: 'Email', icon: 'mail', showInSidebar: true, order: 10 }],
-      commands: [{ id: 'compose', title: 'Email: Compose', category: 'Email' }],
+      widgets: [{ id: 'client', title: '邮箱', icon: 'mail', defaultArea: 'center', minW: 420 }],
+      routes: [{ id: 'main', title: '邮箱', icon: 'mail', showInSidebar: true, order: 10 }],
+      commands: [
+        { id: 'compose', title: '邮箱: 写邮件', category: '邮箱' },
+        { id: 'unreadCount', title: '邮箱: 获取未读数', category: '邮箱' },
+      ],
       searchProviders: [
         {
           id: 'mail',
-          label: 'Email',
+          label: '邮件',
           search: async (q, limit) => {
             if (!ctxRef) return [];
             const rows = await searchMessages(ctxRef, q, limit);
@@ -31,8 +33,8 @@ export default definePlugin({
               id: `mpw.email:mail:${m.id}`,
               pluginId: 'mpw.email',
               type: 'mail',
-              title: m.subject || '(no subject)',
-              snippet: truncate(`${m.from_name}: ${m.body_text}`, 80),
+              title: m.subject || '(无主题)',
+              snippet: truncate(`${m.from_name}:${m.body_text}`, 80),
               icon: 'mail',
               score: m.subject.toLowerCase().includes(q.toLowerCase()) ? 0.9 : 0.6,
             }));
@@ -42,25 +44,24 @@ export default definePlugin({
       contextProviders: [
         {
           id: 'open',
-          label: 'Open email',
+          label: '当前邮件',
           getContext: async () => {
-            if (!ctxRef || !openMessageId) return null;
+            if (!ctxRef) return null;
+            const id = await ctxRef.storage.get<string | null>('ui.openMessageId', null);
+            if (!id) return null;
             const { getMessage } = await import('./store');
-            const m = await getMessage(ctxRef, openMessageId);
+            const m = await getMessage(ctxRef, id);
             if (!m) return null;
             return {
               id: 'open',
-              label: `Email: ${truncate(m.subject, 40)}`,
+              label: `邮件: ${truncate(m.subject, 40)}`,
               kind: 'text' as const,
-              content: `Subject: ${m.subject}\nFrom: ${m.from_name} <${m.from_addr}>\nDate: ${new Date(m.date).toLocaleString()}\n\n${m.body_text.slice(0, 4000)}`,
+              content: `主题: ${m.subject}\n发件人: ${m.from_name} <${m.from_addr}>\n时间: ${new Date(m.date).toLocaleString('zh-CN')}\n\n${m.body_text.slice(0, 4000)}`,
               source: 'mpw.email',
             };
           },
         },
       ],
-      // Phase 3 AI extension points (declared now, consumed by the AI plugin):
-      // summarization, long-thread digest, task extraction, date extraction,
-      // auto-classification, reply drafting, translation — all via ctx.ai.
     },
   },
 
@@ -69,17 +70,33 @@ export default definePlugin({
     await initSchema(ctx);
     await seedDemoData(ctx);
 
-    ctx.ui.registerWidget('client', () => React.createElement(MailViewComp, { ctx, compact: true }));
-    ctx.ui.registerRoute('main', () => React.createElement(MailViewComp, { ctx }));
-
     const { MailView } = await import('./MailView');
-    function MailViewComp(props: { ctx: PluginContext; compact?: boolean }): React.ReactElement {
-      return React.createElement(MailView, { ...props, key: 'mail' });
-    }
+    const Comp = (props: { ctx: PluginContext; compact?: boolean }): React.ReactElement =>
+      React.createElement(MailView, { ...props, key: 'mail' });
+    ctx.ui.registerWidget('client', () => React.createElement(Comp, { ctx, compact: true }));
+    ctx.ui.registerRoute('main', () => React.createElement(Comp, { ctx }));
 
     ctx.commands.register('mpw.email.compose', () => {
       ctx.ui.openWidget('mpw.email/client');
       ctx.events.emit('mail:compose', {});
+    });
+
+    // 未读计数(顶栏铃铛角标)
+    ctx.commands.register('mpw.email.unreadCount', async () => {
+      const accounts = await listAccounts(ctx);
+      let n = 0;
+      for (const a of accounts) {
+        const msgs = await listMessages(ctx, a.id, 'inbox');
+        n += msgs.filter((m) => !m.is_read).length;
+      }
+      return n;
+    });
+
+    // 邮件打开时记录上下文 ID
+    ctx.events.on('ui:open:mpw.email', (p) => {
+      const hit = (p as { hit?: { id: string } }).hit;
+      const id = hit?.id.split(':').pop() ?? null;
+      if (id) void ctx.storage.set('ui.openMessageId', id);
     });
 
     const emitStats = async (): Promise<void> => {
@@ -93,21 +110,20 @@ export default definePlugin({
       }
       ctx.events.emit('plugin:stats', {
         pluginId: 'mpw.email',
-        name: 'Email',
+        name: '邮箱',
         stats: [
-          { label: 'accounts', count: accounts.length, icon: 'mail' },
-          { label: 'inbox', count: total, icon: 'inbox' },
-          { label: 'unread', count: unread, icon: 'zap' },
+          { label: '邮箱账户', count: accounts.length, icon: 'mail' },
+          { label: '收件箱', count: total, icon: 'inbox' },
+          { label: '未读', count: unread, icon: 'zap' },
         ],
       });
     };
     ctx.events.on('mail:changed', () => void emitStats());
     await emitStats();
-    ctx.log.info('email plugin ready (demo transport)');
+    ctx.log.info('邮箱插件已就绪(demo 传输)');
   },
 
   async deactivate() {
     ctxRef = null;
-    openMessageId = null;
   },
 });

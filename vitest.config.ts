@@ -13,6 +13,8 @@ export default defineConfig({
       '@mpw/plugin-email': path.resolve(__dirname, 'plugins/email/src/index.ts'),
       '@mpw/plugin-files': path.resolve(__dirname, 'plugins/files/src/index.ts'),
       '@mpw/plugin-ai': path.resolve(__dirname, 'plugins/ai/src/index.ts'),
+      '@mpw/plugin-tasks': path.resolve(__dirname, 'plugins/tasks/src/index.ts'),
+      '@mpw/plugin-projects': path.resolve(__dirname, 'plugins/projects/src/index.ts'),
     },
   },
   test: {

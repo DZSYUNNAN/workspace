@@ -33,6 +33,39 @@ export interface CollectionRecord {
 const T = 'p_references_references';
 const C = 'p_references_collections';
 const CI = 'p_references_collection_items';
+const AN = 'p_references_annotations';
+
+export interface AnnotationRecord {
+  id: string;
+  reference_id: string;
+  page: number;
+  kind: string; // 'highlight'
+  rects: string; // JSON [{x,y,w,h}] 比例坐标(相对页面宽高)
+  text: string;
+  color: string;
+  created_at: number;
+}
+
+export async function addAnnotation(ctx: PluginContext, a: Omit<AnnotationRecord, 'id' | 'created_at'>): Promise<AnnotationRecord> {
+  const id = uuidv7();
+  const created = nowMs();
+  await ctx.storage.sql.exec(
+    `INSERT INTO ${AN} (id, reference_id, page, kind, rects, text, color, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, a.reference_id, a.page, a.kind, a.rects, a.text, a.color, created]
+  );
+  return { id, created_at: created, ...a };
+}
+
+export async function listAnnotations(ctx: PluginContext, referenceId: string): Promise<AnnotationRecord[]> {
+  return await ctx.storage.sql.all<AnnotationRecord>(
+    `SELECT * FROM ${AN} WHERE reference_id = ? ORDER BY page, created_at`,
+    [referenceId]
+  );
+}
+
+export async function deleteAnnotation(ctx: PluginContext, id: string): Promise<void> {
+  await ctx.storage.sql.exec(`DELETE FROM ${AN} WHERE id = ?`, [id]);
+}
 
 export async function initSchema(ctx: PluginContext): Promise<void> {
   const version = await ctx.storage.get<number>('__schema_version', 0);
@@ -49,6 +82,10 @@ export async function initSchema(ctx: PluginContext): Promise<void> {
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER)`);
   await ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS ${CI} (
     collection_id TEXT NOT NULL, reference_id TEXT NOT NULL, PRIMARY KEY (collection_id, reference_id))`);
+  await ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS ${AN} (
+    id TEXT PRIMARY KEY, reference_id TEXT NOT NULL, page INTEGER NOT NULL,
+    kind TEXT NOT NULL, rects TEXT NOT NULL, text TEXT DEFAULT '', color TEXT DEFAULT '#ffe066',
+    created_at INTEGER NOT NULL)`);
   await ctx.storage.set('__schema_version', 1);
 }
 

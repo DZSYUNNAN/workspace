@@ -36,7 +36,7 @@ export function ChatWidget(props: { ctx: PluginContext }): React.ReactElement {
         {msgs.length === 0 && (
           <div className="ai-empty">
             <Icon name="sparkles" size={22} />
-            <div>Ask anything — answers land right in your workspace.</div>
+            <div>随时提问 — 回答直接落在你的工作台里。</div>
           </div>
         )}
         {msgs.map((m, i) => (
@@ -47,7 +47,7 @@ export function ChatWidget(props: { ctx: PluginContext }): React.ReactElement {
       <div className="ai-input">
         <textarea
           className="input"
-          placeholder="Ask…"
+          placeholder="输入问题…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
