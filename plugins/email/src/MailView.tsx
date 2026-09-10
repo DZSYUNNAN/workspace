@@ -71,6 +71,9 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
     void reloadAccounts();
     const offs = [
       ctx.events.on('mail:changed', () => void reloadMessages()),
+      ctx.events.on('mail:compose', () => {
+        setCompose({ to: '', subject: '', body: '' });
+      }),
       ctx.events.on('ui:open:mpw.email', (p) => {
         const hit = (p as { hit?: { id: string } }).hit;
         if (!hit) return;

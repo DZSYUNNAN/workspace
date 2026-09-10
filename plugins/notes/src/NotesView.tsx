@@ -29,7 +29,14 @@ export function NotesView(props: {
   useEffect(() => {
     void reload();
     const off = ctx.events.on('notes:changed', () => void reload());
-    return off;
+    const offOpen = ctx.events.on('ui:open:mpw.notes', (p) => {
+      const id = (p as { hit?: { id: string } }).hit?.id.split(':').pop();
+      if (id) setActiveId(id);
+    });
+    return () => {
+      off();
+      offOpen();
+    };
   }, []);
 
   const active = notes.find((n) => n.id === activeId) ?? null;

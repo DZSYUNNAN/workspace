@@ -70,6 +70,10 @@ export default definePlugin({
         ],
       });
     };
+    ctx.commands.register('mpw.files.upload', () => {
+      ctx.events.emit('files:uploadRequest', {});
+    });
+
     ctx.events.on('files:changed', () => void emitStats());
     await emitStats();
     ctx.log.info('文件插件已就绪');
