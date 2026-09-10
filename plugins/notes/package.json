@@ -1,0 +1,22 @@
+{
+  "name": "@mpw/plugin-notes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@mpw/kernel": "*",
+    "@mpw/shared": "*",
+    "@mpw/ui": "*",
+    "dompurify": "^3.2.3",
+    "katex": "^0.16.11",
+    "markdown-it": "^14.1.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2"
+  }
+}

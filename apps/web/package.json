@@ -1,0 +1,32 @@
+{
+  "name": "@mpw/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mpw/kernel": "*",
+    "@mpw/plugin-ai": "*",
+    "@mpw/plugin-email": "*",
+    "@mpw/plugin-files": "*",
+    "@mpw/plugin-notes": "*",
+    "@mpw/plugin-references": "*",
+    "@mpw/plugin-writing": "*",
+    "@mpw/shared": "*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sql.js": "^1.13.0",
+    "@mpw/ui": "*",
+    "katex": "^0.16.11"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

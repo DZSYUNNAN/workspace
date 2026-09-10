@@ -18,7 +18,7 @@ Conventions for every table:
 - `id TEXT PRIMARY KEY` — UUIDv7 strings (time-ordered, sync-friendly).
 - `created_at` / `updated_at` INTEGER (unix ms); `deleted_at INTEGER NULL` — **tombstone soft delete** so Phase 6 sync can diff.
 - `device_id TEXT` on entities users create (set at insert; used later by SyncProvider).
-- Plugin data is namespaced: plugin SQL tables are prefixed `p_notes_`, `p_mail_`, … ; plugin KV rows live in `plugin_kv(plugin_id, key, value)`. Plugins cannot read other plugins' namespaces (enforced by prefixing inside `PluginContext.storage`).
+- Plugin data is namespaced: plugin SQL tables are prefixed `p_notes_`, `p_email_`, … ; plugin KV rows live in `plugin_kv(plugin_id, key, value)`. Plugins cannot read other plugins' namespaces (enforced by prefixing inside `PluginContext.storage`).
 
 ## 2. Core schema (kernel-owned)
 
@@ -92,39 +92,39 @@ CREATE TABLE p_notes_notes (
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER);
 
 -- mpw.references
-CREATE TABLE p_refs_references (
+CREATE TABLE p_references_references (
   id TEXT PRIMARY KEY, citation_key TEXT, entry_type TEXT NOT NULL DEFAULT 'article',
   title TEXT NOT NULL, authors TEXT NOT NULL DEFAULT '[]',            -- JSON [{family,given}]
   venue TEXT, year INTEGER, doi TEXT, abstract TEXT, keywords TEXT NOT NULL DEFAULT '[]',
   tags TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '',
   blob_ref TEXT, file_name TEXT, created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL, deleted_at INTEGER);
-CREATE TABLE p_refs_collections (
+CREATE TABLE p_references_collections (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT,
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER);
-CREATE TABLE p_refs_collection_items (
+CREATE TABLE p_references_collection_items (
   collection_id TEXT NOT NULL, reference_id TEXT NOT NULL,
   PRIMARY KEY (collection_id, reference_id));
-CREATE TABLE p_refs_annotations (   -- PDF highlights (Phase 2 persistence layer ready)
+CREATE TABLE p_references_annotations (   -- PDF highlights (Phase 2 persistence layer ready)
   id TEXT PRIMARY KEY, reference_id TEXT NOT NULL, page INTEGER NOT NULL,
   kind TEXT NOT NULL, rects TEXT NOT NULL, text TEXT, color TEXT,
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER);
 
 -- mpw.writing
-CREATE TABLE p_write_documents (    -- mode='rich' | 'latex'
+CREATE TABLE p_writing_documents (    -- mode='rich' | 'latex'
   id TEXT PRIMARY KEY, title TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'rich',
   content TEXT NOT NULL DEFAULT '',          -- HTML (rich) | LaTeX source
   folder TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]',
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER);
 
 -- mpw.email
-CREATE TABLE p_mail_accounts (
+CREATE TABLE p_email_accounts (
   id TEXT PRIMARY KEY, address TEXT NOT NULL, display_name TEXT, provider TEXT NOT NULL,
   kind TEXT NOT NULL DEFAULT 'demo',         -- demo|imap|graph|gmail
   status TEXT NOT NULL DEFAULT 'ok',
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER);
   -- NOTE: passwords/tokens intentionally absent → SecretStore only.
-CREATE TABLE p_mail_messages (
+CREATE TABLE p_email_messages (
   id TEXT PRIMARY KEY, account_id TEXT NOT NULL, folder TEXT NOT NULL,
   thread_id TEXT, subject TEXT NOT NULL DEFAULT '', from_name TEXT, from_addr TEXT,
   to_list TEXT NOT NULL DEFAULT '[]', cc_list TEXT NOT NULL DEFAULT '[]',
@@ -133,7 +133,7 @@ CREATE TABLE p_mail_messages (
   is_starred INTEGER NOT NULL DEFAULT 0, labels TEXT NOT NULL DEFAULT '[]',
   has_attachments INTEGER NOT NULL DEFAULT 0, attachments TEXT NOT NULL DEFAULT '[]',
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER);
-CREATE INDEX idx_mail_folder ON p_mail_messages(account_id, folder, date DESC);
+CREATE INDEX idx_mail_folder ON p_email_messages(account_id, folder, date DESC);
 
 -- mpw.files (metadata; contents in BlobStore)
 CREATE TABLE p_files_entries (

@@ -1,0 +1,26 @@
+{
+  "name": "@mpw/plugin-writing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.3",
+    "@codemirror/commands": "^6.8.0",
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/language": "^6.10.6",
+    "@codemirror/legacy-modes": "^6.4.2",
+    "@codemirror/search": "^6.5.10",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.1",
+    "@mpw/kernel": "*",
+    "@mpw/shared": "*",
+    "docx": "^9.5.0",
+    "katex": "^0.16.11",
+    "react": "^18.3.1",
+    "@mpw/ui": "*"
+  }
+}
