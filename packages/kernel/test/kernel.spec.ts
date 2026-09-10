@@ -38,7 +38,7 @@ describe('kernel boot & plugin lifecycle', () => {
     expect(report.loaded).toContain('mpw.demo');
     expect(k.workspaces.list().length).toBeGreaterThanOrEqual(1);
     const presets = k.workspaces.listPresets();
-    expect(presets.map((p) => p.name)).toEqual(expect.arrayContaining(['Daily Work', 'Research Mode', 'Paper Writing', 'Teaching Mode']));
+    expect(presets.map((p) => p.name)).toEqual(expect.arrayContaining(['日常办公', '科研模式', '论文写作', '教学模式']));
   });
 
   it('disabling a plugin unloads contributions; re-enabling reloads them', async () => {
@@ -199,7 +199,7 @@ describe('layout persistence via WorkspaceStore', () => {
   it('applies builtin presets and protects the last workspace from deletion', async () => {
     const k = await makeKernel();
     await k.boot();
-    const preset = k.workspaces.listPresets().find((p) => p.name === 'Research Mode');
+    const preset = k.workspaces.listPresets().find((p) => p.name === '科研模式');
     expect(preset).toBeDefined();
     const ws = k.workspaces.list()[0];
     k.workspaces.saveLayout(ws.id, preset!.state);

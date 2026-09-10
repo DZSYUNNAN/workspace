@@ -12,7 +12,8 @@ export type Permission =
   | 'network'
   | 'credentials'
   | 'clipboard'
-  | 'ai:invoke';
+  | 'ai:invoke'
+  | 'native';
 
 export const ALL_PERMISSIONS: Permission[] = [
   'storage',
@@ -21,15 +22,17 @@ export const ALL_PERMISSIONS: Permission[] = [
   'credentials',
   'clipboard',
   'ai:invoke',
+  'native',
 ];
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
-  storage: 'Local storage',
-  blobs: 'File system',
-  network: 'Network access',
-  credentials: 'Credentials (OS keychain)',
-  clipboard: 'Clipboard',
-  'ai:invoke': 'AI assistant',
+  storage: '本地存储',
+  blobs: '文件系统',
+  network: '网络访问',
+  credentials: '凭据(OS 钥匙串)',
+  clipboard: '剪贴板',
+  'ai:invoke': 'AI 助手',
+  native: '系统能力(本地编译 / 原生进程)',
 };
 
 export type DockArea = 'left' | 'right' | 'top' | 'bottom' | 'center' | 'float';
@@ -197,6 +200,11 @@ export interface PluginSettings {
   all(): Promise<Record<string, unknown>>;
 }
 
+export interface PluginLatex {
+  compile(req: import('./latex').LatexCompileRequest): Promise<import('./latex').LatexCompileResult>;
+  available(): boolean;
+}
+
 export interface PluginContext {
   pluginId: string;
   storage: PluginStorage;
@@ -206,6 +214,7 @@ export interface PluginContext {
   secrets: PluginSecrets;
   blobs: PluginBlobs;
   ai: PluginAi;
+  latex: PluginLatex;
   ui: PluginUi;
   log: PluginLogger;
 }

@@ -11,4 +11,6 @@ export * from './secretStore';
 export * from './ai';
 export * from './search';
 export * from './context';
+export * from './bgtasks';
+export * from './latex';
 export * from './kernel';

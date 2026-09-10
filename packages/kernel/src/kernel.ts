@@ -9,6 +9,8 @@ import { MemorySecretStore, type SecretStoreAdapter } from './secretStore';
 import { AiGateway } from './ai';
 import { SearchService } from './search';
 import { ContextService } from './context';
+import { BgTaskRegistry } from './bgtasks';
+import { LatexService } from './latex';
 import { nowMs, uuidv7, type LayoutState } from '@mpw/shared';
 import type {
   AiActionContribution,
@@ -74,6 +76,8 @@ export class Kernel {
   readonly workspaces: WorkspaceStore;
   readonly search = new SearchService();
   readonly context = new ContextService();
+  readonly bgTasks = new BgTaskRegistry();
+  readonly latex: LatexService;
   readonly blobs: BlobStore;
   readonly secrets: SecretStoreAdapter;
   readonly ai: AiGateway;
@@ -101,6 +105,8 @@ export class Kernel {
       }),
       (providerId) => this.secrets.get(`ai.key.${providerId}`)
     );
+    this.latex = new LatexService(this.bgTasks);
+    this.bgTasks.setNotifier(() => this.events.emit('bgtasks:changed', { count: this.bgTasks.count() }));
   }
 
   registerBuiltins(plugins: WorkspacePlugin[]): void {
@@ -164,52 +170,24 @@ export class Kernel {
   }
 
   private seedBuiltinPresets(): void {
-    const existing = this.db.one(
-      "SELECT COUNT(*) AS n FROM layout_presets WHERE is_builtin = 1 AND deleted_at IS NULL"
-    );
-    if ((existing?.['n'] as number) > 0) return;
-    const mk = (areas: Partial<LayoutState['areas']>): string =>
-      JSON.stringify({
+    // upsert per builtin name (CN) — adds missing presets without duplicating
+    const presetsSeed: { name: string; areas: Record<string, unknown> }[] = [
+      { name: '日常办公', areas: { left: { kind: 'tabs', items: ['mpw.notes/list', 'mpw.files/browser'], active: 0 }, center: { kind: 'tabs', items: ['mpw.email/client', 'mpw.home/dashboard'], active: 0 }, right: { kind: 'tabs', items: ['mpw.ai/chat'], active: 0 } } },
+      { name: '科研模式', areas: { left: { kind: 'tabs', items: ['mpw.notes/list'], active: 0 }, center: { kind: 'tabs', items: ['mpw.references/library'], active: 0 }, right: { kind: 'tabs', items: ['mpw.tasks/list'], active: 0 } } },
+      { name: '论文写作', areas: { left: { kind: 'tabs', items: ['mpw.references/library'], active: 0 }, center: { kind: 'tabs', items: ['mpw.writing/editor'], active: 0 }, right: { kind: 'tabs', items: ['mpw.ai/chat'], active: 0 } } },
+      { name: '教学模式', areas: { left: { kind: 'tabs', items: ['mpw.files/browser'], active: 0 }, center: { kind: 'tabs', items: ['mpw.writing/editor', 'mpw.notes/list'], active: 0 }, right: { kind: 'tabs', items: ['mpw.ai/chat'], active: 0 } } },
+    ];
+    for (const p of presetsSeed) {
+      const exists = this.db.one('SELECT id FROM layout_presets WHERE name = ? AND is_builtin = 1 AND deleted_at IS NULL', [p.name]);
+      if (exists) continue;
+      const state = JSON.stringify({
         version: 1,
-        areas: { left: null, right: null, top: null, bottom: null, center: null, ...areas },
+        areas: { left: null, right: null, top: null, bottom: null, center: null, ...p.areas },
         floats: [],
         sizes: { leftW: 250, rightW: 340, topH: 180, bottomH: 160 },
-      } satisfies LayoutState);
-    const presets: { name: string; state: string }[] = [
-      {
-        name: 'Daily Work',
-        state: mk({
-          left: { kind: 'tabs', items: ['mpw.notes/list', 'mpw.files/browser'], active: 0 },
-          center: { kind: 'tabs', items: ['mpw.email/client', 'mpw.home/dashboard'], active: 0 },
-          right: { kind: 'tabs', items: ['mpw.ai/chat'], active: 0 },
-        }),
-      },
-      {
-        name: 'Research Mode',
-        state: mk({
-          left: { kind: 'tabs', items: ['mpw.notes/list'], active: 0 },
-          center: { kind: 'tabs', items: ['mpw.references/library'], active: 0 },
-          right: { kind: 'tabs', items: ['mpw.ai/chat'], active: 0 },
-        }),
-      },
-      {
-        name: 'Paper Writing',
-        state: mk({
-          left: { kind: 'tabs', items: ['mpw.references/library'], active: 0 },
-          center: { kind: 'tabs', items: ['mpw.writing/editor'], active: 0 },
-          right: { kind: 'tabs', items: ['mpw.ai/chat'], active: 0 },
-        }),
-      },
-      {
-        name: 'Teaching Mode',
-        state: mk({
-          left: { kind: 'tabs', items: ['mpw.files/browser'], active: 0 },
-          center: { kind: 'tabs', items: ['mpw.writing/editor', 'mpw.notes/list'], active: 0 },
-          right: { kind: 'tabs', items: ['mpw.ai/chat'], active: 0 },
-        }),
-      },
-    ];
-    for (const p of presets) this.workspaces.savePreset(p.name, p.state, null, true);
+      } satisfies import('@mpw/shared').LayoutState);
+      this.workspaces.savePreset(p.name, state, null, true);
+    }
   }
 
   /* --------------------------- lifecycle mgmt --------------------------- */
@@ -516,6 +494,13 @@ export class Kernel {
           self.requirePermission(id, 'ai:invoke');
           return await self.ai.run(prompt, opts);
         },
+      },
+      latex: {
+        compile: async (req) => {
+          self.requirePermission(id, 'native');
+          return await self.latex.compile(req);
+        },
+        available: () => self.latex.current().available,
       },
       ui: {
         notify: (message, kind) => self.events.emit('notify', { message, kind, pluginId: id }),
