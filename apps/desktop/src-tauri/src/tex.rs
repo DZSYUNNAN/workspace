@@ -10,9 +10,9 @@ use wait_timeout::ChildExt;
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompileResult {
-    ok: bool,
-    pdf_base64: Option<String>,
-    log: String,
+    pub ok: bool,
+    pub pdf_base64: Option<String>,
+    pub log: String,
 }
 fn safe_file(name: &str) -> bool {
     !name.is_empty()
@@ -24,9 +24,17 @@ fn safe_file(name: &str) -> bool {
                 && p != "."
                 && p != ".."
                 && p.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
+                    .all(|c| c.is_alphanumeric() || "_.- ()".contains(c))
         })
-        && (name.ends_with(".tex") || name.ends_with(".bib"))
+        && project_file(name)
+}
+pub fn project_file(name: &str) -> bool {
+    let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
+    [
+        "tex", "bib", "sty", "cls", "bst", "bbx", "cbx", "def", "fd", "clo", "png", "jpg", "jpeg",
+        "pdf", "eps", "mps",
+    ]
+    .contains(&ext.as_str())
 }
 fn executable_path(name: &str) -> PathBuf {
     let filename = if cfg!(windows) {
@@ -127,14 +135,30 @@ fn compile(
     entry: String,
     files: BTreeMap<String, String>,
 ) -> Result<CompileResult, String> {
+    compile_project(
+        source,
+        engine,
+        entry,
+        files
+            .into_iter()
+            .map(|(name, text)| (name, text.into_bytes()))
+            .collect(),
+    )
+}
+pub fn compile_project(
+    source: String,
+    engine: String,
+    entry: String,
+    files: BTreeMap<String, Vec<u8>>,
+) -> Result<CompileResult, String> {
     if !["xelatex", "lualatex", "pdflatex"].contains(&engine.as_str()) {
         return Err("不支持的编译引擎".into());
     }
-    if !safe_file(&entry) || !entry.ends_with(".tex") || files.len() > 200 {
+    if !safe_file(&entry) || !entry.to_lowercase().ends_with(".tex") || files.len() > 500 {
         return Err("无效的工程入口或文件数量".into());
     }
-    if source.len() + files.values().map(|s| s.len()).sum::<usize>() > 10 * 1024 * 1024 {
-        return Err("工程文本超过 10 MB".into());
+    if source.len() + files.values().map(|s| s.len()).sum::<usize>() > 100 * 1024 * 1024 {
+        return Err("工程内容超过 100 MB，请将主文件与依赖放入独立工程目录".into());
     }
     let temp = tempfile::tempdir().map_err(|e| e.to_string())?;
     for (name, content) in files {
@@ -148,21 +172,27 @@ fn compile(
     let entry_path = temp.path().join(&entry);
     fs::create_dir_all(entry_path.parent().unwrap()).map_err(|e| e.to_string())?;
     fs::write(&entry_path, source).map_err(|e| e.to_string())?;
+    // Command performs platform argument quoting; do not embed literal quotes.
+    let entry_arg = format!("./{entry}");
+    let job = format!("mpw-{}", uuid::Uuid::new_v4());
+    let job_arg = format!("-jobname={job}");
     let args = [
         "-no-shell-escape",
         "-interaction=nonstopmode",
         "-halt-on-error",
-        "-jobname=modudesk",
-        entry.as_str(),
+        job_arg.as_str(),
+        entry_arg.as_str(),
     ];
     run(temp.path(), &engine, &args)?;
-    let aux = fs::read_to_string(temp.path().join("modudesk.aux")).unwrap_or_default();
-    if aux.contains("\\bibdata") && aux.contains("\\citation") {
-        run(temp.path(), "bibtex", &["modudesk"])?;
+    let aux = fs::read_to_string(temp.path().join(format!("{job}.aux"))).unwrap_or_default();
+    if temp.path().join(format!("{job}.bcf")).exists() {
+        run(temp.path(), "biber", &[&job])?;
+    } else if aux.contains("\\bibdata") {
+        run(temp.path(), "bibtex", &[&job])?;
     }
     run(temp.path(), &engine, &args)?;
     let log = run(temp.path(), &engine, &args)?;
-    let bytes = fs::read(temp.path().join("modudesk.pdf")).map_err(|e| e.to_string())?;
+    let bytes = fs::read(temp.path().join(format!("{job}.pdf"))).map_err(|e| e.to_string())?;
     Ok(CompileResult {
         ok: true,
         pdf_base64: Some(STANDARD.encode(bytes)),

@@ -17,6 +17,7 @@ fn main() {
             local_files::local_file_open,
             local_files::local_file_read,
             local_files::local_file_write,
+            local_files::local_file_compile,
             storage::workspace_read,
             storage::workspace_write,
             storage::workspace_restore,

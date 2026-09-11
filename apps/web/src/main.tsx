@@ -58,7 +58,7 @@ async function boot(): Promise<void> {
   const report = await kernel.boot();
   const localDocuments = createLocalDocuments();
   kernel.commands.register({ id: 'workspace.localDocuments', title: '本地文档' }, () => localDocuments);
-  kernel.commands.register({ id: 'workspace.beginFileWork', title: '文件导入任务' }, () => kernel.bgTasks.begin('文献导入'));
+  kernel.commands.register({ id: 'workspace.beginFileWork', title: '文件任务' }, (label) => kernel.bgTasks.begin(typeof label === 'string' ? label : '文献导入'));
   localDocuments.subscribe(() => kernel.events.emit('local-documents:changed', { unsaved: localDocuments.unsaved }));
   registerResources(kernel, db);
   if (report.failed.length > 0) {

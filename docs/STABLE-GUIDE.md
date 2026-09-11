@@ -1,8 +1,8 @@
-# ModuDesk 0.3.0 使用与迁移
+# ModuDesk 0.3.1 使用与迁移
 
 ## 启动
 
-Windows：运行 `ModuDesk_0.3.0_x64-setup.exe` 安装。也可直接运行构建目录的 `modudesk.exe`。
+Windows：运行 `ModuDesk_0.3.1_x64-setup.exe` 安装。也可直接运行构建目录的 `modudesk.exe`。
 Web：在仓库根目录执行 `npm ci`、`npm run build`、`npm start`，打开 `http://localhost:8080`。
 启动器优先使用 `apps/web/dist`。端口占用时会停止并提示，不会自动换端口。
 
@@ -24,6 +24,12 @@ Web：在仓库根目录执行 `npm ci`、`npm run build`、`npm start`，打开
 
 ## 科研工作流程
 
+### 0.3.1 本地 TeX 编译修复
+
+写作 → 选取本地文档 → 选择主 `.tex` 文件 → 选择引擎（中文优先 XeLaTeX）→ “编译并预览 PDF”。编译前自动保存，成功后在编辑器旁显示 PDF，可翻页、缩放和下载；失败时显示日志并清除旧结果。
+
+本地编译读取主文件所在目录及子目录中的 TeX/BibTeX、图片、CLS/STY/BST 等依赖，复制到临时目录后运行，不向原工程写入编译中间文件。支持 BibTeX 和 Biber，需本机安装相应工具。工程上限 100 MB / 500 个依赖文件；请将主文件与依赖放在独立目录内，不支持引用目录外文件或符号链接。浏览器版不能启动本机编译器，需使用桌面版。
+
 ### 0.3.0 新增功能
 
 - 桌面窗口右上角 ×：选择“最小化到任务栏”“保存并退出”或“取消”。保存失败会保留窗口，解决问题后可重试。
@@ -41,7 +47,7 @@ Web：在仓库根目录执行 `npm ci`、`npm run build`、`npm start`，打开
 4. 写作页点击“插入引用”。富文本当前追加 APA 格式参考文献到末尾；LaTeX 插入 `\cite{key}` 并更新 `references.bib`。目前不提供完整的自动编号引用字段系统。
 5. 富文本可导出 DOCX。LaTeX 桌面编译优先以 `main.tex` 为入口，包含工程内 `.tex`、`.bib`，按需运行 BibTeX 并多次编译解析引用。
 
-桌面编译需要 TeX Live 或 MiKTeX。优先查找 PATH，也会探测 Windows 常见安装目录；中文模板使用 `ctexart`。每个编译进程限时 60 秒，失败时显示日志。当前工程文件接口支持文本 TeX/BibTeX，外部图片和任意本地工程目录导入仍待扩展。
+桌面编译需要 TeX Live 或 MiKTeX。优先查找 PATH，也会探测 Windows 常见安装目录；中文模板使用 `ctexart`。每个编译进程限时 60 秒，失败时显示日志。工作台内部工程接口支持文本 TeX/BibTeX；包含本地图片和模板文件的工程请通过“选取本地文档”打开主 TeX 文件。
 
 ## AI
 

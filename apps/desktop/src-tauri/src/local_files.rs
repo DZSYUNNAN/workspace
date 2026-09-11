@@ -2,10 +2,10 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs,
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use tauri::State;
@@ -41,6 +41,42 @@ fn read(path: &PathBuf) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 impl LocalFiles {
+    fn compile(
+        &self,
+        id: &str,
+        source: String,
+        engine: String,
+        expected: &str,
+    ) -> Result<crate::tex::CompileResult, String> {
+        let path = {
+            let selected = self.0.lock().map_err(|e| e.to_string())?;
+            selected
+                .get(id)
+                .ok_or("文件未获授权，请重新选择")?
+                .path
+                .clone()
+        };
+        if !path
+            .extension()
+            .is_some_and(|s| s.eq_ignore_ascii_case("tex"))
+        {
+            return Err("请选择 LaTeX 主文件（.tex）".into());
+        }
+        if hash(&read(&path)?) != expected {
+            return Err("本地文件已改变，请重新读取或等待同步完成再编译".into());
+        }
+        let root = path.parent().ok_or("工程目录无效")?;
+        let mut files = BTreeMap::new();
+        let mut size = source.len();
+        let mut visited = 0;
+        collect_project(root, root, &mut files, &mut size, &mut visited, 0)?;
+        crate::tex::compile_project(
+            source,
+            engine,
+            path.file_name().unwrap().to_string_lossy().into(),
+            files,
+        )
+    }
     fn select(&self, path: PathBuf) -> Result<Opened, String> {
         let path = path.canonicalize().map_err(|e| e.to_string())?;
         let ext = path
@@ -137,6 +173,83 @@ impl LocalFiles {
         Ok(hash(bytes))
     }
 }
+fn collect_project(
+    root: &Path,
+    dir: &Path,
+    files: &mut BTreeMap<String, Vec<u8>>,
+    size: &mut usize,
+    visited: &mut usize,
+    depth: usize,
+) -> Result<(), String> {
+    if depth > 12 {
+        return Err("工程子目录层数过多，请使用独立的 LaTeX 工程目录".into());
+    }
+    for item in fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let item = item.map_err(|e| e.to_string())?;
+        *visited += 1;
+        if *visited > 10000 {
+            return Err("工程目录文件过多，请将 TeX 与依赖放在独立目录".into());
+        }
+        let name = item.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.')
+            || ["node_modules", "target", "build", "dist"].contains(&name.as_str())
+        {
+            continue;
+        }
+        let kind = item.file_type().map_err(|e| e.to_string())?;
+        if kind.is_symlink() {
+            continue;
+        }
+        let path = item.path();
+        if !path
+            .canonicalize()
+            .map_err(|e| e.to_string())?
+            .starts_with(root)
+        {
+            return Err("工程依赖超出了主文件目录".into());
+        }
+        if kind.is_dir() {
+            collect_project(root, &path, files, size, visited, depth + 1)?;
+        } else if kind.is_file() && crate::tex::project_file(&name) {
+            // Limit before allocation; source files remain read-only throughout compilation.
+            let len = item.metadata().map_err(|e| e.to_string())?.len();
+            if len > (100 * 1024 * 1024usize).saturating_sub(*size) as u64 || files.len() >= 500 {
+                return Err("工程超过 100 MB / 500 个依赖文件，请使用独立工程目录".into());
+            }
+            let mut bytes = Vec::new();
+            fs::File::open(&path)
+                .map_err(|e| e.to_string())?
+                .take((100 * 1024 * 1024usize - *size + 1) as u64)
+                .read_to_end(&mut bytes)
+                .map_err(|e| e.to_string())?;
+            *size += bytes.len();
+            if *size > 100 * 1024 * 1024 {
+                return Err("工程超过 100 MB".into());
+            }
+            files.insert(
+                path.strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                bytes,
+            );
+        }
+    }
+    Ok(())
+}
+#[tauri::command]
+pub async fn local_file_compile(
+    state: State<'_, LocalFiles>,
+    id: String,
+    source: String,
+    engine: String,
+    expected: String,
+) -> Result<crate::tex::CompileResult, String> {
+    let files = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || files.compile(&id, source, engine, &expected))
+        .await
+        .map_err(|e| e.to_string())?
+}
 #[tauri::command]
 pub async fn local_file_open(
     state: State<'_, LocalFiles>,
@@ -185,6 +298,68 @@ pub async fn local_file_write(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn local_compile_rejects_unselected_or_changed_files() {
+        let files = LocalFiles::default();
+        assert!(files
+            .compile("not-selected", "".into(), "xelatex".into(), "")
+            .is_err());
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("main.tex");
+        fs::write(&path, "old").unwrap();
+        let opened = files.select(path.clone()).unwrap();
+        fs::write(&path, "changed outside").unwrap();
+        assert!(files
+            .compile(&opened.id, "old".into(), "xelatex".into(), &opened.stamp)
+            .err()
+            .unwrap()
+            .contains("已改变"));
+    }
+    #[test]
+    #[ignore = "requires installed XeLaTeX and BibTeX"]
+    fn compiles_selected_local_project_with_image_class_and_bibliography() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("sections")).unwrap();
+        fs::create_dir(dir.path().join("figures")).unwrap();
+        let source = "\\documentclass{local}\n\\usepackage{graphicx}\n\\begin{document}\n\\input{sections/intro}\n\\includegraphics[width=1cm]{figures/image.png}\n\\bibliographystyle{plain}\n\\bibliography{references}\n\\end{document}";
+        let path = dir.path().join("主 稿.tex");
+        fs::write(&path, source).unwrap();
+        fs::write(
+            dir.path().join("local.cls"),
+            "\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesClass{local}\n\\LoadClass{ctexart}",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("sections/intro.tex"),
+            "本地工程测试。\\cite{fixture2026}",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("references.bib"),
+            "@article{fixture2026,title={Fixture},author={Tester, Ada},journal={Test},year={2026}}",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("figures/image.png"),
+            include_bytes!("../icons/32x32.png"),
+        )
+        .unwrap();
+        fs::write(dir.path().join("modudesk.pdf"), "stale output").unwrap();
+        let files = LocalFiles::default();
+        let opened = files.select(path.clone()).unwrap();
+        let result = files
+            .compile(&opened.id, source.into(), "xelatex".into(), &opened.stamp)
+            .unwrap();
+        let pdf = STANDARD.decode(result.pdf_base64.unwrap()).unwrap();
+        assert!(pdf.starts_with(b"%PDF-"));
+        assert!(pdf.len() > 1000);
+        assert!(!result.log.contains("undefined references"));
+        assert_eq!(fs::read_to_string(path).unwrap(), source);
+        assert!(!dir.path().join("modudesk.aux").exists());
+        if let Ok(path) = std::env::var("MODUDESK_TEST_OUTPUT") {
+            fs::write(path, pdf).unwrap();
+        }
+    }
     #[test]
     fn writes_selected_file_and_preserves_original_backup() {
         let dir = tempfile::tempdir().unwrap();

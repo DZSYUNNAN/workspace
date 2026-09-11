@@ -210,7 +210,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
       </div>
 
       <div className="note-editor-wrap">
-        {activeLocal ? <LocalDocumentEditor key={activeLocal.file.id} session={activeLocal} onDetach={async () => { await local?.detach(activeLocal); setActiveLocal(null); }} /> : active ? (
+        {activeLocal ? <LocalDocumentEditor key={activeLocal.file.id} ctx={ctx} session={activeLocal} onDetach={async () => { await local?.detach(activeLocal); setActiveLocal(null); }} /> : active ? (
           <>
             <div className="widget-toolbar">
               <button className="btn sm" onClick={() => void ctx.commands.execute('mpw.references.citations').then((r) => setCitations(r as NonNullable<typeof citations>)).catch(() => ctx.ui.notify('请先启用文献插件', 'warn'))}>插入引用</button>

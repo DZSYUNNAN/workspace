@@ -1,9 +1,12 @@
 import { decodeDocument, type EditableDocument } from './documents';
 export interface LocalFile { id: string; name: string; path: string; bytes: Uint8Array; stamp: string }
+export type TexEngine = 'xelatex' | 'lualatex' | 'pdflatex';
+export interface LocalTexResult { ok: boolean; pdfBase64?: string | null; log: string }
 export interface LocalFileAdapter {
   open(): Promise<LocalFile | null>;
   read(id: string): Promise<LocalFile>;
   write(id: string, bytes: Uint8Array, expected: string): Promise<string>;
+  compile?(id: string, source: string, engine: TexEngine, expected: string): Promise<LocalTexResult>;
 }
 export class LocalDocumentSession {
   codec: EditableDocument;
@@ -48,6 +51,12 @@ export class LocalDocumentSession {
     this.revision = this.committed = 0; this.phase = 'saved'; this.error = ''; this.notify();
   }
   snapshot(): Uint8Array { return this.codec.encode(this.texts); }
+  async compile(engine: TexEngine): Promise<LocalTexResult> {
+    if (!this.file.name.toLowerCase().endsWith('.tex')) throw new Error('请打开 LaTeX 主文件（.tex）');
+    if (!this.adapter.compile) throw new Error('本地 TeX 编译需要 Windows 桌面版和 TeX Live / MiKTeX');
+    await this.flush();
+    return this.adapter.compile(this.file.id, this.texts[0], engine, this.file.stamp);
+  }
   async stop(): Promise<void> { clearTimeout(this.timer); if (this.pending) await this.pending.catch(() => {}); clearTimeout(this.timer); }
 }
 export class LocalDocuments {

@@ -18,9 +18,10 @@
     "@codemirror/view": "^6.36.1",
     "@mpw/kernel": "*",
     "@mpw/shared": "*",
+    "@mpw/ui": "*",
     "docx": "^9.5.0",
     "katex": "^0.16.11",
-    "react": "^18.3.1",
-    "@mpw/ui": "*"
+    "pdfjs-dist": "^4.10.38",
+    "react": "^18.3.1"
   }
 }

@@ -13,6 +13,7 @@ export function createLocalDocuments(): LocalDocuments {
     open: async () => { const f = await invoke<NativeFile | null>('local_file_open'); return f ? unpack(f) : null; },
     read: async (id) => unpack(await invoke<NativeFile>('local_file_read', { id })),
     write: (id, bytes, expected) => invoke('local_file_write', { id, data: toBase64(bytes), expected }),
+    compile: (id, source, engine, expected) => invoke('local_file_compile', { id, source, engine, expected }),
   });
   const handles = new Map<string, FileHandle>(); const backedUp = new Set<string>();
   const adapter: LocalFileAdapter = {
