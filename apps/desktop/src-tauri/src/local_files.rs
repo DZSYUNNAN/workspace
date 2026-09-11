@@ -2,10 +2,10 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fs,
     io::{Read, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 use tauri::State;
@@ -66,10 +66,7 @@ impl LocalFiles {
             return Err("本地文件已改变，请重新读取或等待同步完成再编译".into());
         }
         let root = path.parent().ok_or("工程目录无效")?;
-        let mut files = BTreeMap::new();
-        let mut size = source.len();
-        let mut visited = 0;
-        collect_project(root, root, &mut files, &mut size, &mut visited, 0)?;
+        let files = crate::tex_dependencies::collect(root, &path, &source)?;
         crate::tex::compile_project(
             source,
             engine,
@@ -172,70 +169,6 @@ impl LocalFiles {
         temp.persist(&file.path).map_err(|e| e.to_string())?;
         Ok(hash(bytes))
     }
-}
-fn collect_project(
-    root: &Path,
-    dir: &Path,
-    files: &mut BTreeMap<String, Vec<u8>>,
-    size: &mut usize,
-    visited: &mut usize,
-    depth: usize,
-) -> Result<(), String> {
-    if depth > 12 {
-        return Err("工程子目录层数过多，请使用独立的 LaTeX 工程目录".into());
-    }
-    for item in fs::read_dir(dir).map_err(|e| e.to_string())? {
-        let item = item.map_err(|e| e.to_string())?;
-        *visited += 1;
-        if *visited > 10000 {
-            return Err("工程目录文件过多，请将 TeX 与依赖放在独立目录".into());
-        }
-        let name = item.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.')
-            || ["node_modules", "target", "build", "dist"].contains(&name.as_str())
-        {
-            continue;
-        }
-        let kind = item.file_type().map_err(|e| e.to_string())?;
-        if kind.is_symlink() {
-            continue;
-        }
-        let path = item.path();
-        if !path
-            .canonicalize()
-            .map_err(|e| e.to_string())?
-            .starts_with(root)
-        {
-            return Err("工程依赖超出了主文件目录".into());
-        }
-        if kind.is_dir() {
-            collect_project(root, &path, files, size, visited, depth + 1)?;
-        } else if kind.is_file() && crate::tex::project_file(&name) {
-            // Limit before allocation; source files remain read-only throughout compilation.
-            let len = item.metadata().map_err(|e| e.to_string())?.len();
-            if len > (100 * 1024 * 1024usize).saturating_sub(*size) as u64 || files.len() >= 500 {
-                return Err("工程超过 100 MB / 500 个依赖文件，请使用独立工程目录".into());
-            }
-            let mut bytes = Vec::new();
-            fs::File::open(&path)
-                .map_err(|e| e.to_string())?
-                .take((100 * 1024 * 1024usize - *size + 1) as u64)
-                .read_to_end(&mut bytes)
-                .map_err(|e| e.to_string())?;
-            *size += bytes.len();
-            if *size > 100 * 1024 * 1024 {
-                return Err("工程超过 100 MB".into());
-            }
-            files.insert(
-                path.strip_prefix(root)
-                    .unwrap()
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-                bytes,
-            );
-        }
-    }
-    Ok(())
 }
 #[tauri::command]
 pub async fn local_file_compile(
@@ -345,6 +278,19 @@ mod tests {
         )
         .unwrap();
         fs::write(dir.path().join("modudesk.pdf"), "stale output").unwrap();
+        // Reproduce a main document selected from a large general-purpose folder.
+        fs::File::create(dir.path().join("unrelated-large.pdf"))
+            .unwrap()
+            .set_len(101 * 1024 * 1024)
+            .unwrap();
+        fs::create_dir(dir.path().join("unrelated-documents")).unwrap();
+        for i in 0..510 {
+            fs::write(
+                dir.path().join(format!("unrelated-documents/{i}.tex")),
+                "unused",
+            )
+            .unwrap();
+        }
         let files = LocalFiles::default();
         let opened = files.select(path.clone()).unwrap();
         let result = files

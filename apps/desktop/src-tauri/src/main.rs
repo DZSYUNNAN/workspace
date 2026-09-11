@@ -2,6 +2,7 @@
 mod local_files;
 mod storage;
 mod tex;
+mod tex_dependencies;
 use tauri::Manager;
 fn main() {
     tauri::Builder::default()

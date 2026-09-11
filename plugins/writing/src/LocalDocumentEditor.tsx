@@ -52,7 +52,7 @@ export function LocalDocumentEditor({ session, onDetach, ctx }: { session: Local
       </select>
       <button className="btn primary" disabled={compiling || reloading} onClick={() => void compile()}>{compiling ? '正在编译…' : '编译并预览 PDF'}</button>
       {pdf && <button className="btn" onClick={() => downloadBlob(new Blob([pdf.slice().buffer], { type: 'application/pdf' }), session.file.name.replace(/\.tex$/i, '.pdf'))}>下载 PDF</button>}
-      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>请选择主 .tex 文件；桌面版会读取同目录及子目录中的章节、图片和参考文献。</span>
+      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>请选择主 .tex 文件；桌面版按文稿引用读取同目录及子目录中的依赖，无关文件不计入工程。</span>
     </div>}
     <div style={{ padding: '8px 14px', fontSize: 12, overflowWrap: 'anywhere', color: 'var(--text-2)' }}>
       原文件：{session.file.path}<br />修改会自动同步到这个文件。第一次保存会保留原稿备份。
