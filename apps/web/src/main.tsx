@@ -19,6 +19,7 @@ import './styles.css';
 import 'katex/dist/katex.min.css';
 import type { WorkspaceData } from './adapters/backup';
 import { registerResources } from './resources';
+import { createLocalDocuments } from './adapters/localFiles';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('missing #root');
@@ -55,6 +56,10 @@ async function boot(): Promise<void> {
     emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin,
   ]);
   const report = await kernel.boot();
+  const localDocuments = createLocalDocuments();
+  kernel.commands.register({ id: 'workspace.localDocuments', title: '本地文档' }, () => localDocuments);
+  kernel.commands.register({ id: 'workspace.beginFileWork', title: '文件导入任务' }, () => kernel.bgTasks.begin('文献导入'));
+  localDocuments.subscribe(() => kernel.events.emit('local-documents:changed', { unsaved: localDocuments.unsaved }));
   registerResources(kernel, db);
   if (report.failed.length > 0) {
     console.error('plugins failed to activate:', report.failed);
@@ -66,12 +71,11 @@ async function boot(): Promise<void> {
     const win = getCurrentWindow();
     await win.onCloseRequested(async (event) => {
       event.preventDefault();
-      try { await db.flush(); await win.destroy(); }
-      catch (e) { kernel.events.emit('notify', { kind: 'error', message: `关闭前保存失败：${e}` }); }
+      kernel.events.emit('desktop:close-requested', {});
     });
   }
   window.addEventListener('beforeunload', (event) => {
-    if (db.state.phase !== 'saved') { event.preventDefault(); event.returnValue = ''; void db.flush().catch(() => {}); }
+    if (db.state.phase !== 'saved' || localDocuments.unsaved || kernel.bgTasks.count() > 0) { event.preventDefault(); event.returnValue = ''; void Promise.all([db.flush(), localDocuments.flush()]).catch(() => {}); }
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') void db.flush().catch(() => {});

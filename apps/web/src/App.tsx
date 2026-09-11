@@ -10,6 +10,7 @@ import { AiPanel } from './shell/AiPanel';
 import { PluginCenter } from './shell/PluginCenter';
 import { SettingsView } from './shell/SettingsView';
 import { Canvas } from './workspace/Canvas';
+import { CloseDialog } from './shell/CloseDialog';
 
 export function App(): React.ReactElement {
   useTheme();
@@ -49,6 +50,7 @@ export function App(): React.ReactElement {
       <StatusBar />
       <Toasts />
       <SearchPalette />
+      <CloseDialog />
     </div>
   );
 }

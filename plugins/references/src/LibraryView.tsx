@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import { Icon } from '@mpw/ui';
-import { formatAuthors } from '@mpw/shared';
+import { formatAuthors, DOCUMENT_ACCEPT, documentMime, extension } from '@mpw/shared';
 import {
   addToCollection,
   createCollection,
@@ -18,7 +18,8 @@ import {
 } from './store';
 import { fetchDoi, parseBibtex, parseRis } from './parsers';
 import { formatCitation, type CitationRecord, type CitationStyle } from './citations';
-import { PdfReader } from './PdfReader';
+import { DocumentReader } from './DocumentReader';
+import { importLibraryDocument } from './documents';
 
 type ImportTab = 'bibtex' | 'ris' | 'doi' | 'manual';
 
@@ -41,6 +42,34 @@ export function LibraryView(props: {
   const [readerOpen, setReaderOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const [creatingCollection, setCreatingCollection] = useState(false);
+  const [collectionName, setCollectionName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const fail = (e: unknown): void => ctx.ui.notify(String(e instanceof Error ? e.message : e), 'error');
+  const uploadDocuments = async (files: File[]): Promise<void> => {
+    setUploading(true); setUploadMessage('正在导入…');
+    const task = await ctx.commands.execute('workspace.beginFileWork').catch(() => null) as { finish(): void } | null;
+    let count = 0; let first: string | null = null; const errors: string[] = [];
+    try {
+      for (const file of files) {
+        try { const id = await importLibraryDocument(ctx, file, collectionId); first ??= id; count++; }
+        catch (e) { errors.push(`${file.name}：${String(e instanceof Error ? e.message : e)}`); }
+      }
+      await reload(); if (first) { setSelectedId(first); setReaderOpen(false); }
+      ctx.events.emit('refs:changed', {});
+      setUploadMessage(`已导入 ${count} 个文档${errors.length ? `；${errors.join('；')}` : ''}`);
+    } catch (e) { fail(e); }
+    finally { task?.finish(); setUploading(false); }
+  };
+  const downloadAttachment = async (): Promise<void> => {
+    if (!selected?.blob_ref) return;
+    const stored = await ctx.blobs.get(selected.blob_ref); if (!stored) throw new Error('附件缺失');
+    const url = URL.createObjectURL(new Blob([stored.bytes.slice().buffer], { type: documentMime(selected.file_name) }));
+    const link = document.createElement('a'); link.href = url; link.download = selected.file_name; link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
 
   const reload = async (): Promise<void> => {
     setRefs(await listRefs(ctx, collectionId ?? undefined));
@@ -104,10 +133,11 @@ export function LibraryView(props: {
     }
   };
 
-  const attachPdf = async (file: File): Promise<void> => {
+  const attachDocument = async (file: File): Promise<void> => {
     if (!selected) return;
+    if (!DOCUMENT_ACCEPT.split(',').includes(`.${extension(file.name)}`) || file.size > 100 * 1024 * 1024 || !file.size) throw new Error('请选择支持的文档，大小在 1 字节至 100 MB 之间');
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const blob = await ctx.blobs.put(`references/${file.name}`, bytes, 'application/pdf');
+    const blob = await ctx.blobs.put(`references/${file.name}`, bytes, documentMime(file.name));
     await updateRef(ctx, selected.id, { blob_ref: blob.ref, file_name: file.name });
     ctx.events.emit('refs:changed', { id: selected.id });
     ctx.ui.notify(`已附加 ${file.name}`, 'success');
@@ -123,28 +153,37 @@ export function LibraryView(props: {
             <Icon name="plus" size={12} />
           </button>
         </div>
+        <div style={{ padding: '4px 6px' }}>
+          <button className="btn primary" style={{ width: '100%' }} disabled={uploading} onClick={() => uploadInput.current?.click()}><Icon name="upload" size={13} />{uploading ? '正在导入…' : '上传本地文档'}</button>
+          <input ref={uploadInput} aria-label="上传本地文档" type="file" accept={DOCUMENT_ACCEPT} multiple hidden onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void uploadDocuments(files); }} />
+          <p style={{ fontSize: 11, color: 'var(--text-3)' }}>PDF / Word / Markdown 等 · 多选上传到当前文献库 · 原文件保留</p>
+          {uploadMessage && <p role="status" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{uploadMessage}</p>}
+        </div>
         <div style={{ padding: '2px 6px' }}>
-          <button className={`mail-folder-btn${collectionId === null ? ' active' : ''}`} style={{ width: '100%' }} onClick={() => setCollectionId(null)}>
+          <button disabled={uploading} className={`mail-folder-btn${collectionId === null ? ' active' : ''}`} style={{ width: '100%' }} onClick={() => { setCollectionId(null); setSelectedId(null); setReaderOpen(false); }}>
             <Icon name="book" size={13} /> 全部 ({refs.length})
           </button>
           {collections.map((c) => (
-            <button key={c.id} className={`mail-folder-btn${collectionId === c.id ? ' active' : ''}`} style={{ width: '100%' }} onClick={() => setCollectionId(c.id)}>
+            <button disabled={uploading} key={c.id} className={`mail-folder-btn${collectionId === c.id ? ' active' : ''}`} style={{ width: '100%' }} onClick={() => { setCollectionId(c.id); setSelectedId(null); setReaderOpen(false); }}>
               <Icon name="folder" size={13} /> {c.name}
             </button>
           ))}
           <button
             className="mail-folder-btn"
             style={{ width: '100%', color: 'var(--text-3)' }}
-            onClick={async () => {
-              const name = window.prompt('新建文献集合名称');
-              if (name) {
-                await createCollection(ctx, name);
-                await reload();
-              }
-            }}
+            disabled={uploading}
+            onClick={() => setCreatingCollection(true)}
           >
-            <Icon name="plus" size={13} /> 新建集合
+            <Icon name="plus" size={13} /> 新建文献库
           </button>
+          {creatingCollection && <form style={{ display: 'grid', gap: 6, padding: 6 }} onSubmit={(e) => {
+            e.preventDefault(); const name = collectionName.trim(); if (!name) return;
+            void createCollection(ctx, name).then(async (c) => { setCollections(await listCollections(ctx)); setCreatingCollection(false); setCollectionName(''); setSelectedId(null); setCollectionId(c.id); }).catch(fail);
+          }}>
+            <input autoFocus className="input" aria-label="文献库名称" placeholder="文献库名称" value={collectionName} onChange={(e) => setCollectionName(e.target.value)} />
+            <button className="btn sm primary" disabled={!collectionName.trim()}>创建文献库</button>
+            <button type="button" className="btn sm" onClick={() => setCreatingCollection(false)}>取消</button>
+          </form>}
         </div>
         <div className="list">
           {filtered.map((r) => (
@@ -156,7 +195,7 @@ export function LibraryView(props: {
               </span>
             </button>
           ))}
-          {filtered.length === 0 && <div className="empty-state">文献库还是空的<br /><span style={{ fontSize: 11 }}>支持导入 BibTeX / RIS / DOI,或手动添加</span></div>}
+          {filtered.length === 0 && <div className="empty-state">文献库还是空的<br /><span style={{ fontSize: 11 }}>上传 PDF / Word / Markdown，或导入 BibTeX / RIS / DOI</span></div>}
         </div>
       </div>
 
@@ -169,7 +208,7 @@ export function LibraryView(props: {
                 <button className="btn sm" style={{ alignSelf: 'flex-start', marginBottom: 8 }} onClick={() => setReaderOpen(false)}>
                   ← 返回详情
                 </button>
-                <PdfReader ctx={ctx} blobRef={selected.blob_ref} fileName={selected.file_name} />
+                <DocumentReader key={selected.blob_ref} ctx={ctx} blobRef={selected.blob_ref} fileName={selected.file_name} />
               </div>
             ) : (
               <>
@@ -205,13 +244,14 @@ export function LibraryView(props: {
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
                   {selected.blob_ref ? (
                     <button className="btn sm primary" onClick={() => setReaderOpen(true)}>
-                      <Icon name="pdf" size={13} /> 打开 PDF 阅读
+                      <Icon name="book" size={13} /> {extension(selected.file_name) === 'pdf' ? '打开 PDF 阅读' : '预览文档'}
                     </button>
                   ) : (
                     <button className="btn sm" onClick={() => fileInput.current?.click()}>
-                      <Icon name="upload" size={13} /> 附件 PDF
+                      <Icon name="upload" size={13} /> 附加本地文档
                     </button>
                   )}
+                  {selected.blob_ref && <button className="btn sm" onClick={() => void downloadAttachment().catch(fail)}><Icon name="download" size={13} />下载原文件</button>}
                   <select
                     className="input"
                     style={{ fontSize: 12 }}
@@ -240,10 +280,10 @@ export function LibraryView(props: {
                     <Icon name="trash" size={12} />
                   </button>
                 </div>
-                <input ref={fileInput} type="file" accept="application/pdf" hidden onChange={async (e) => {
+                <input ref={fileInput} aria-label="附加本地文档" type="file" accept={DOCUMENT_ACCEPT} hidden onChange={async (e) => {
                   const f = e.target.files?.[0];
-                  if (f) await attachPdf(f);
                   e.target.value = '';
+                  if (f) await attachDocument(f).catch(fail);
                 }} />
 
                 <h2 style={{ fontSize: 13, color: 'var(--text-2)' }}>引用格式</h2>
@@ -260,6 +300,7 @@ export function LibraryView(props: {
 
                 <h2 style={{ fontSize: 13, color: 'var(--text-2)' }}>阅读笔记</h2>
                 <textarea
+                  key={selected.id}
                   className="input"
                   style={{ width: '100%', minHeight: 90, resize: 'vertical' }}
                   placeholder="阅读笔记…"
@@ -289,6 +330,7 @@ export function LibraryView(props: {
           onClose={() => setImportOpen(false)}
           onImported={async (ids) => {
             setImportOpen(false);
+            if (collectionId) for (const id of ids) await addToCollection(ctx, collectionId, id);
             await reload();
             if (ids.length > 0) setSelectedId(ids[0] as string);
           }}

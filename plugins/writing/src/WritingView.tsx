@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import { Icon } from '@mpw/ui';
-import { escapeHtml } from '@mpw/shared';
+import { escapeHtml, type LocalDocuments, type LocalDocumentSession } from '@mpw/shared';
+import { LocalDocumentEditor } from './LocalDocumentEditor';
 import {
   addFile,
   createDoc,
@@ -22,7 +23,27 @@ import { downloadBlob, htmlToDocxBlob } from './docx';
 export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSelectedChange?: (id: string | null) => void }): React.ReactElement {
   const { ctx } = props;
   const [docs, setDocs] = useState<DocRecord[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, selectActiveId] = useState<string | null>(null);
+  const [local, setLocal] = useState<LocalDocuments | null>(null);
+  const [activeLocal, setActiveLocal] = useState<LocalDocumentSession | null>(null);
+  const [, redrawLocal] = useState(0);
+  const [openingLocal, setOpeningLocal] = useState(false);
+  const setActiveId = (id: string | null): void => { setActiveLocal(null); selectActiveId(id); };
+  useEffect(() => {
+    let dispose: (() => void) | undefined; let cancelled = false;
+    void ctx.commands.execute('workspace.localDocuments').then((value) => {
+      if (cancelled) return; const manager = value as LocalDocuments; setLocal(manager);
+      dispose = manager.subscribe(() => redrawLocal((n) => n + 1));
+    }).catch(() => {});
+    return () => { cancelled = true; dispose?.(); };
+  }, [ctx]);
+  const openLocal = async (): Promise<void> => {
+    if (!local) { ctx.ui.notify('请使用更新后的完整工作台打开本地文档', 'warn'); return; }
+    setOpeningLocal(true);
+    try { const session = await local.open(); if (session) { setActiveLocal(session); props.onSelectedChange?.(null); } }
+    catch (e) { ctx.ui.notify(String(e instanceof Error ? e.message : e), 'error'); }
+    finally { setOpeningLocal(false); }
+  };
   const [draft, setDraft] = useState<{ title: string; content: string }>({ title: '', content: '' });
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
@@ -166,6 +187,10 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
           </button>
         </div>
         <div className="list">
+          <button className="list-row" disabled={openingLocal} onClick={() => void openLocal()}><Icon name="folder" size={13} />{openingLocal ? '正在打开…' : '选取本地文档'}</button>
+          {local?.sessions.map((s) => <button key={s.file.id} className={`list-row${activeLocal === s ? ' active' : ''}`} onClick={() => { setActiveLocal(s); props.onSelectedChange?.(null); }}>
+            <Icon name="file" size={13} /><span className="lr-title">{s.file.name}</span><span className="badge gray">{s.phase === 'saved' ? '本地' : s.phase === 'error' ? '同步失败' : '保存中'}</span>
+          </button>)}
           {docs.map((d) => (
             <button key={d.id} className={`list-row${d.id === activeId ? ' active' : ''}`} onClick={() => setActiveId(d.id)}>
               <Icon name={d.mode === 'latex' ? 'code' : 'pen'} size={13} />
@@ -185,7 +210,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
       </div>
 
       <div className="note-editor-wrap">
-        {active ? (
+        {activeLocal ? <LocalDocumentEditor key={activeLocal.file.id} session={activeLocal} onDetach={async () => { await local?.detach(activeLocal); setActiveLocal(null); }} /> : active ? (
           <>
             <div className="widget-toolbar">
               <button className="btn sm" onClick={() => void ctx.commands.execute('mpw.references.citations').then((r) => setCitations(r as NonNullable<typeof citations>)).catch(() => ctx.ui.notify('请先启用文献插件', 'warn'))}>插入引用</button>

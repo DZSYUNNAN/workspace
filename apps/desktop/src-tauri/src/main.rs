@@ -1,9 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod local_files;
 mod storage;
 mod tex;
 use tauri::Manager;
 fn main() {
     tauri::Builder::default()
+        .manage(local_files::LocalFiles::default())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_focus();
@@ -12,6 +14,9 @@ fn main() {
         .setup(storage::setup)
         .invoke_handler(tauri::generate_handler![
             tex::compile_latex,
+            local_files::local_file_open,
+            local_files::local_file_read,
+            local_files::local_file_write,
             storage::workspace_read,
             storage::workspace_write,
             storage::workspace_restore,

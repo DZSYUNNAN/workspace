@@ -8,6 +8,8 @@ import { APP_NAME } from '../labels';
 export function StatusBar(): React.ReactElement {
   const { kernel, data, version, workspaceId, setLayout, layout, refresh } = useApp();
   const [save, setSave] = useState(data?.db.state);
+  const [localUnsaved, setLocalUnsaved] = useState(false);
+  useEffect(() => kernel.events.on('local-documents:changed', (event) => setLocalUnsaved((event as { unsaved: boolean }).unsaved)), [kernel]);
   useEffect(() => data?.db.subscribe(() => setSave(data.db.state)), [data]);
   void version;
   const [bgCount, setBgCount] = useState(kernel.bgTasks.count());
@@ -69,6 +71,7 @@ export function StatusBar(): React.ReactElement {
           <Icon name="zap" size={12} /> {failed.length} 个插件异常
         </span>
       )}
+      {localUnsaved && <span className="sb-item" style={{ color: 'var(--warning)' }}>本地文档待同步（请查看写作页）</span>}
       <span className="spacer" />
       <span className="sb-item">{APP_NAME} v{APP_VERSION}</span>
     </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../state';
 import { createBackup, readBackup, type BackupData } from '../adapters/backup';
+import type { LocalDocuments } from '@mpw/shared';
 
 function download(bytes: Uint8Array, name: string): void {
   const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'application/zip' }));
@@ -8,14 +9,14 @@ function download(bytes: Uint8Array, name: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 export function DataSettings(): React.ReactElement {
-  const { data } = useApp();
+  const { data, kernel } = useApp();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [candidate, setCandidate] = useState<BackupData | null>(null);
   if (!data) return <></>;
   const run = async (fn: () => Promise<void>): Promise<void> => {
     setBusy(true); setMessage('');
-    try { await fn(); } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
+    try { if (kernel.bgTasks.count() > 0) throw new Error('文件导入或后台任务尚未完成，请稍后再备份/恢复'); await fn(); } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
   return <section>
@@ -38,6 +39,7 @@ export function DataSettings(): React.ReactElement {
       {candidate && <div>
         <p>备份时间：{candidate.createdAt}，附件 {Object.keys(candidate.blobs).length} 个。恢复将替换当前工作台，并先下载一份当前数据的备份。</p>
         <button className="btn danger" disabled={busy} onClick={() => void run(async () => {
+          if (kernel.commands.has('workspace.localDocuments')) await (await kernel.commands.execute('workspace.localDocuments') as LocalDocuments).flush();
           download(await createBackup(data), `ModuDesk-before-restore-${Date.now()}.mpwbackup`);
           await data.restore(candidate.database, candidate.blobs);
           window.location.reload();

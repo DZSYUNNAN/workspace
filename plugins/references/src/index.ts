@@ -112,7 +112,7 @@ export default definePlugin({
         name: '文献',
         stats: [
           { label: '文献', count: refs.length, icon: 'book' },
-          { label: 'PDF 附件', count: refs.filter((r) => r.blob_ref).length, icon: 'pdf' },
+          { label: '文档附件', count: refs.filter((r) => r.blob_ref).length, icon: 'file' },
         ],
       });
     };
