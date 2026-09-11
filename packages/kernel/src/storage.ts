@@ -86,12 +86,17 @@ export class SettingsService {
 
   set(key: string, value: unknown): void {
     if (!this.hydrated) this.hydrate();
-    this.cache.set(key, value);
+    if (value === undefined) {
+      this.db.run('DELETE FROM settings WHERE key = ?', [key]);
+      this.cache.delete(key);
+      return;
+    }
     this.db.run(
       `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
       [key, JSON.stringify(value), nowMs()]
     );
+    this.cache.set(key, value);
   }
 
   has(key: string): boolean {

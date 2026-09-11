@@ -80,8 +80,8 @@ export default definePlugin({
     const { initSchema } = await import('./store');
     await initSchema(ctx);
 
-    ctx.ui.registerWidget('editor', () => React.createElement(WritingView, { ctx, compact: true }));
-    ctx.ui.registerRoute('main', () => React.createElement(WritingView, { ctx }));
+    ctx.ui.registerWidget('editor', () => React.createElement(WritingView, { ctx, compact: true, onSelectedChange: (id: string | null) => { activeDocId = id; } }));
+    ctx.ui.registerRoute('main', () => React.createElement(WritingView, { ctx, onSelectedChange: (id: string | null) => { activeDocId = id; } }));
 
     ctx.commands.register('mpw.writing.newRichDoc', async () => {
       const { createDoc } = await import('./store');

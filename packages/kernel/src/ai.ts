@@ -81,7 +81,7 @@ export const demoProvider: AiProviderAdapter = {
 /* --------------------------- network providers --------------------------- */
 
 async function fetchJson(url: string, init: RequestInit): Promise<unknown> {
-  const res = await fetch(url, init);
+  const res = await fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(60000) });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`AI provider HTTP ${res.status}: ${text.slice(0, 300)}`);
@@ -106,6 +106,7 @@ export const openAiProvider: AiProviderAdapter = {
       body: JSON.stringify({
         model: p.model ?? this.defaultModel,
         temperature: p.temperature ?? 0.7,
+        ...(p.maxTokens ? { max_tokens: p.maxTokens } : {}),
         messages: [
           ...(p.system ? [{ role: 'system', content: p.system }] : []),
           { role: 'user', content: buildUserContent(p) },
@@ -244,8 +245,9 @@ export class AiGateway {
 
   async run(prompt: string, opts?: AiRunOptions): Promise<AiResult> {
     const cfg = this.resolveConfig();
-    const provider = this.providers.get(cfg.providerId) ?? this.providers.get('demo');
+    const provider = this.providers.get(cfg.providerId);
     if (!provider) throw new AiConfigError('no AI provider available');
+    if (provider.id === 'openai-compatible' && !cfg.baseUrl) throw new AiConfigError('请填写兼容服务的 Base URL');
     const apiKey = provider.requiresKey ? await this.resolveKey(provider.id) : null;
     if (provider.requiresKey && !apiKey) {
       throw new AiConfigError(
@@ -253,8 +255,8 @@ export class AiGateway {
       );
     }
     const contextText = (opts?.context ?? []).map((c) => c.content).join('\n\n---\n\n') || undefined;
-    return await provider.complete({
-      baseUrl: cfg.baseUrl,
+    const result = await provider.complete({
+      baseUrl: cfg.baseUrl?.replace(/\/+$/, ''),
       model: cfg.model,
       apiKey: apiKey ?? undefined,
       system: opts?.system,
@@ -263,6 +265,8 @@ export class AiGateway {
       temperature: opts?.temperature,
       maxTokens: opts?.maxTokens,
     });
+    if (!result.text.trim()) throw new AiConfigError('服务返回了空内容，请检查模型名称和接口地址');
+    return result;
   }
 }
 

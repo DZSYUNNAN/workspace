@@ -35,7 +35,7 @@ export function RichEditor(props: {
 
   useEffect(() => {
     const el = ref.current;
-    if (el && el.innerHTML !== props.value) el.innerHTML = props.value;
+    if (el && el.innerHTML !== props.value) el.innerHTML = DOMPurify.sanitize(props.value);
   }, [props.value]);
 
   const onInput = useCallback(() => {

@@ -1,0 +1,36 @@
+name: Workspace checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modudesk-web
+          path: apps/web/dist
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: rustup toolchain install stable --profile minimal
+      - run: npm ci
+      - run: npm run build
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+      - run: npm run desktop:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modudesk-windows
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe

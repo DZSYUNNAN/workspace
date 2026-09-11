@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state';
 import { Icon } from '../components/Icon';
-import type { SearchHit } from '@mpw/shared';
+import { resourceUri, type SearchHit } from '@mpw/shared';
 
 /** Global command + search palette (Ctrl+K). */
 export function SearchPalette(): React.ReactElement | null {
@@ -74,6 +74,13 @@ export function SearchPalette(): React.ReactElement | null {
       return;
     }
     setQ('');
+    const kinds: Record<string, string> = { 'mpw.notes': 'note', 'mpw.references': 'reference', 'mpw.writing': 'doc' };
+    const kind = kinds[item.hit.pluginId];
+    if (kind) {
+      try { await kernel.commands.execute('workspace.openResource', resourceUri(kind, item.hit.id.split(':').pop() ?? '')); }
+      catch (e) { kernel.events.emit('notify', { message: e instanceof Error ? e.message : String(e), kind: 'error' }); }
+      return;
+    }
     // route to the owning plugin's primary view and ask it to open the entity
     navigate({ type: 'pluginRoute', key: `${item.hit.pluginId}/main` });
     kernel.events.emit(`ui:open:${item.hit.pluginId}`, { hit: item.hit });

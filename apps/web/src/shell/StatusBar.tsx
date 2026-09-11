@@ -6,7 +6,9 @@ import { APP_NAME } from '../labels';
 
 /** 状态栏:工作区模式切换 · 本地已同步 · 后台任务 · 版本(ModuDesk 设计稿)。 */
 export function StatusBar(): React.ReactElement {
-  const { kernel, version, workspaceId, setLayout, layout, refresh } = useApp();
+  const { kernel, data, version, workspaceId, setLayout, layout, refresh } = useApp();
+  const [save, setSave] = useState(data?.db.state);
+  useEffect(() => data?.db.subscribe(() => setSave(data.db.state)), [data]);
   void version;
   const [bgCount, setBgCount] = useState(kernel.bgTasks.count());
   const [wsMenu, setWsMenu] = useState(false);
@@ -51,7 +53,8 @@ export function StatusBar(): React.ReactElement {
         )}
       </div>
       <span className="sb-item">
-        <span className="dot" /> 本地已同步
+        <span className="dot" /> {save?.phase === 'error' ? '保存失败' : save?.phase === 'saving' ? '保存中…' : data ? '已保存到本机' : '本地工作台'}
+        {save?.phase === 'error' && <button className="sb-btn" title={save.error} onClick={() => void data?.db.flush().catch(() => {})}>重试保存</button>}
       </span>
       <span className="sb-item">
         <Icon name="puzzle" size={12} /> {loaded}/{plugins.length} 插件

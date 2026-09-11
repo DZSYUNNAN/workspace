@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import { Icon } from '@mpw/ui';
 import { backlinks, createNote, parseTags, softDeleteNote, type NoteRecord } from './store';
@@ -10,12 +10,17 @@ export function NotesView(props: {
   setActiveId: (id: string | null) => void;
   compact?: boolean;
 }): React.ReactElement {
-  const { ctx, activeId, setActiveId, compact } = props;
+  const { ctx, compact } = props;
+  const [activeId, selectId] = useState(props.activeId);
+  const setActiveId = (id: string | null): void => {
+    selectId(id);
+    props.setActiveId(id);
+    void ctx.storage.set('ui.openId', id);
+  };
   const [notes, setNotes] = useState<NoteRecord[]>([]);
   const [filter, setFilter] = useState('');
   const [draft, setDraft] = useState<{ title: string; body: string; tags: string }>({ title: '', body: '', tags: '' });
   const [mode, setMode] = useState<'edit' | 'preview' | 'split'>('split');
-  const saveTimer = useRef<number | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [selMenu, setSelMenu] = useState<{ text: string } | null>(null);
 
@@ -28,6 +33,7 @@ export function NotesView(props: {
 
   useEffect(() => {
     void reload();
+    void ctx.storage.get<string | null>('ui.openId', null).then((id) => { if (id) setActiveId(id); });
     const off = ctx.events.on('notes:changed', () => void reload());
     const offOpen = ctx.events.on('ui:open:mpw.notes', (p) => {
       const id = (p as { hit?: { id: string } }).hit?.id.split(':').pop();
@@ -47,34 +53,17 @@ export function NotesView(props: {
       body: active?.body_md ?? '',
       tags: parseTags(active?.tags ?? '[]').join(', '),
     });
-  }, [activeId]);
+  }, [activeId, !!active]);
 
-  const scheduleSave = (): void => {
-    if (!active) return;
-    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(async () => {
-      const fields: Record<string, unknown> = {};
-      if (draft.title !== active.title) fields['title'] = draft.title;
-      if (draft.body !== active.body_md) fields['body_md'] = draft.body;
-      const tagJson = JSON.stringify(draft.tags.split(',').map((t) => t.trim()).filter(Boolean));
-      if (tagJson !== active.tags) fields['tags'] = tagJson;
-      if (Object.keys(fields).length === 0) return;
-      const sets = Object.keys(fields).map((k) => `${k} = ?`);
-      const params = Object.values(fields);
-      await ctx.storage.sql.exec(
-        `UPDATE p_notes_notes SET ${[...sets, 'updated_at = ?'].join(', ')} WHERE id = ?`,
-        [...params, Date.now(), active.id]
-      );
-      ctx.events.emit('notes:changed', { id: active.id });
-    }, 450);
+  const updateDraft = (updater: (value: typeof draft) => typeof draft): void => {
+    const next = updater(draft);
+    setDraft(next);
+    if (!activeId) return;
+    void ctx.storage.sql.exec(
+      'UPDATE p_notes_notes SET title = ?, body_md = ?, tags = ?, updated_at = ? WHERE id = ?',
+      [next.title, next.body, JSON.stringify(next.tags.split(',').map((t) => t.trim()).filter(Boolean)), Date.now(), activeId]
+    ).then(() => ctx.events.emit('notes:changed', { id: activeId })).catch((e) => ctx.ui.notify(String(e), 'error'));
   };
-
-  useEffect(() => {
-    scheduleSave();
-    return () => {
-      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-    };
-  }, [draft]);
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -96,7 +85,7 @@ export function NotesView(props: {
     setSelMenu(null);
     try {
       const result = await ctx.ai.run(text, { system: `${kind} the following text.` });
-      setDraft((d) => ({ ...d, body: d.body.replace(text, result.text) }));
+      updateDraft((d) => ({ ...d, body: d.body.replace(text, result.text) }));
     } catch (err) {
       ctx.ui.notify(err instanceof Error ? err.message : String(err), 'error');
     } finally {
@@ -152,7 +141,7 @@ export function NotesView(props: {
                 className="input"
                 style={{ flex: 1, fontWeight: 600, fontSize: 14 }}
                 value={draft.title}
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                onChange={(e) => updateDraft((d) => ({ ...d, title: e.target.value }))}
               />
               {(['edit', 'split', 'preview'] as const).map((m) => (
                 <button key={m} className={`btn sm${mode === m ? ' primary' : ''}`} onClick={() => setMode(m)}>
@@ -187,7 +176,7 @@ export function NotesView(props: {
                     outline: 'none',
                   }}
                   value={draft.body}
-                  onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
+                  onChange={(e) => updateDraft((d) => ({ ...d, body: e.target.value }))}
                   onSelect={(e) => {
                     const ta = e.currentTarget;
                     const text = ta.value.slice(ta.selectionStart, ta.selectionEnd);
@@ -214,7 +203,7 @@ export function NotesView(props: {
                 style={{ flex: 1, fontSize: 11.5, padding: '2px 8px' }}
                 placeholder="标签(逗号分隔)"
                 value={draft.tags}
-                onChange={(e) => setDraft((d) => ({ ...d, tags: e.target.value }))}
+                onChange={(e) => updateDraft((d) => ({ ...d, tags: e.target.value }))}
               />
               {linksBack.length > 0 && (
                 <span title={linksBack.map((b) => b.title).join(', ')}>

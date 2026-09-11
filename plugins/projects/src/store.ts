@@ -55,6 +55,8 @@ export async function deleteProject(ctx: PluginContext, id: string): Promise<voi
 }
 
 export async function addLink(ctx: PluginContext, projectId: string, resourceUri: string, label = ''): Promise<ProjectLinkRecord> {
+  const existing = await ctx.storage.sql.one<ProjectLinkRecord>(`SELECT * FROM ${L} WHERE project_id = ? AND resource_uri = ?`, [projectId, resourceUri]);
+  if (existing) return existing;
   const rec: ProjectLinkRecord = { id: uuidv7(), project_id: projectId, resource_uri: resourceUri, label, added_at: nowMs() };
   await ctx.storage.sql.exec(
     `INSERT INTO ${L} (id, project_id, resource_uri, label, added_at) VALUES (?, ?, ?, ?, ?)`,

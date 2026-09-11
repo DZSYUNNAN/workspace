@@ -36,9 +36,7 @@ describe('AI gateway & demo provider', () => {
 
   it('throws a config error when a key-requiring provider lacks a key', async () => {
     await expect(gateway('openai', null).run('hi')).rejects.toBeInstanceOf(AiConfigError);
-    // unknown provider falls back to demo
-    const res = await gateway('nonexistent').run('hi');
-    expect(res.provider).toBe('demo');
+    await expect(gateway('nonexistent').run('hi')).rejects.toBeInstanceOf(AiConfigError);
   });
 
   it('secret store round-trips and deletes', async () => {

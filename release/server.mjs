@@ -7,9 +7,9 @@
  *   MPW_NO_OPEN=1 node release/server.mjs → 不自动打开浏览器
  *
  * 自动探测预构建产物位置(依次尝试):
- *   1. release/dist          (旧布局)
- *   2. ../apps-web-dist      (发布包 mpw-x.y.z.zip 布局)
- *   3. ../apps/web/dist      (开发仓库布局)
+ *   1. ../apps/web/dist      (最新开发构建)
+ *   2. release/dist          (便携发布包)
+ *   3. ../apps-web-dist      (旧版发布包)
  */
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
@@ -19,9 +19,9 @@ import { fileURLToPath } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const CANDIDATES = [
+  resolve(here, '../apps/web/dist'),
   join(here, 'dist'),
   resolve(here, '../apps-web-dist'),
-  resolve(here, '../apps/web/dist'),
 ];
 const root = CANDIDATES.find((dir) => existsSync(join(dir, 'index.html')));
 if (!root) {
@@ -33,7 +33,7 @@ if (!root) {
 }
 
 const basePort = Number(process.env.PORT || 8080);
-const host = process.env.HOST || '0.0.0.0';
+const host = process.env.HOST || '127.0.0.1';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -96,9 +96,9 @@ function startServer(port) {
     }
   });
   server.on('error', (err) => {
-    if (/** @type {NodeJS.ErrnoException} */ (err).code === 'EADDRINUSE' && port < basePort + 20) {
-      console.error('  [提示] 端口被占用,正在尝试下一个端口…');
-      startServer(port + 1);
+    if (/** @type {NodeJS.ErrnoException} */ (err).code === 'EADDRINUSE') {
+      console.error(`端口 ${port} 已被占用。请打开已运行的 http://localhost:${port}，或关闭占用端口的程序后重试。为保持数据存储地址一致，不会自动更换端口。`);
+      process.exitCode = 1;
     } else {
       throw err;
     }
@@ -106,9 +106,10 @@ function startServer(port) {
   server.listen(port, host, () => {
     const url = `http://localhost:${port}`;
     console.log('\n  ┌─────────────────────────────────────────┐');
-    console.log('  │   ModuDesk · 模块化个人工作台  v0.1.0   │');
+    console.log('  │   ModuDesk · 模块化个人工作台  v0.2.1   │');
     console.log('  └─────────────────────────────────────────┘');
     console.log(`\n  ➜  ${url}(浏览器应已自动打开,若无请手动访问)`);
+    console.log(`     页面目录: ${root}`);
     console.log('     数据保存在本机浏览器中,不会上传到任何服务器。');
     console.log('     停止:按 Ctrl+C 或直接关闭本窗口。\n');
     openBrowser(url);

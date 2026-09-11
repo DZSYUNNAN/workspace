@@ -49,6 +49,7 @@ export function LibraryView(props: {
 
   useEffect(() => {
     void reload();
+    void ctx.storage.get<string | null>('ui.openId', null).then((id) => { if (id) setSelectedId(id); });
     const offs = [
       ctx.events.on('refs:changed', () => void reload()),
       ctx.events.on('refs:openImport', () => setImportOpen(true)),

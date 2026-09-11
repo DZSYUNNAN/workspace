@@ -12,6 +12,16 @@ function sampleMigration(n: number, sql: string): Migration {
 }
 
 describe('migration runner', () => {
+  it('opens the shipped v0.1 database across dev and minified builds', async () => {
+    const db = await openMemoryDb(); migrate(db, CORE_MIGRATIONS);
+    db.run('UPDATE schema_migrations SET checksum = ? WHERE version = 1', ['2993013c']);
+    db.run('UPDATE schema_migrations SET checksum = ? WHERE version = 2', ['2857382c']);
+    expect(() => migrate(db, CORE_MIGRATIONS)).not.toThrow();
+    expect(db.one('SELECT checksum FROM schema_migrations WHERE version = 1')?.checksum).toBe('cd891b90');
+    const tampered = { ...CORE_MIGRATIONS[0], up(d: DbAdapter) { d.exec(`CREATE TABLE changed (x TEXT)`); } };
+    expect(() => migrate(db, [tampered])).toThrow('checksum mismatch');
+    db.close();
+  });
   it('applies pending migrations in order and records them', async () => {
     const db = await openMemoryDb();
     const res = migrate(db, [sampleMigration(1, 'CREATE TABLE a (x TEXT)'), sampleMigration(2, 'CREATE TABLE b (y TEXT)')]);

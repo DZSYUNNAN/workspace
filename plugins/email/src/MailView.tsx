@@ -273,7 +273,7 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
                 </button>
                 <button className="btn primary" disabled={!compose.to || !compose.subject} onClick={async () => {
                   if (!accountId) return;
-                  const transport = getTransport(ctx, accounts.find((a) => a.id === accountId)?.kind ?? 'demo');
+                  const transport = await getTransport(ctx, accounts.find((a) => a.id === accountId)?.kind ?? 'demo');
                   await transport.send(ctx, accountId, { to: compose.to, subject: compose.subject, body: compose.body });
                   ctx.events.emit('mail:changed', {});
                   setCompose(null);

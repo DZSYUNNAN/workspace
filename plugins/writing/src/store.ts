@@ -44,19 +44,19 @@ export async function initSchema(ctx: PluginContext): Promise<void> {
 const DEFAULT_LATEX_FILES: { name: string; content: string }[] = [
   {
     name: 'main.tex',
-    content: `\\documentclass{article}
+    content: `\\documentclass{ctexart}
 \\usepackage{amsmath}
 \\usepackage{graphicx}
 
-\\title{多模态图像融合}
-\\author{林伟}
-\\date{2026 年 9 月}
+\\title{研究稿件}
+\\author{}
+\\date{\\today}
 
 \\begin{document}
 \\maketitle
 
 \\section{引言}
-多模态图像融合旨在结合红外与可见光图像的互补信息。
+在这里开始撰写研究背景。
 
 \\section{方法}
 融合权重由交叉注意力计算:
@@ -64,7 +64,7 @@ const DEFAULT_LATEX_FILES: { name: string; content: string }[] = [
   W = \\mathrm{softmax}\\left(\\frac{QK^{\\top}}{\\sqrt{d}}\\right)
 \\end{equation}
 
-% 引用文献库中的条目: \\cite{okafor2026fusion}
+% 通过「插入引用」从文献库添加真实参考文献。
 \\bibliographystyle{ieeetr}
 \\bibliography{references}
 
@@ -73,13 +73,7 @@ const DEFAULT_LATEX_FILES: { name: string; content: string }[] = [
   },
   {
     name: 'references.bib',
-    content: `@article{okafor2026fusion,
-  title = {Infrared and Visible Image Fusion via Cross-Attention Networks},
-  author = {Okafor, Chidi and Lin, Wei},
-  journal = {Information Fusion},
-  year = {2026}
-}
-`,
+    content: '% 从文献库插入的 BibTeX 条目会保存在这里。\n',
   },
 ];
 

@@ -1,0 +1,10 @@
+import { spawn } from 'node:child_process';
+import { delimiter, join } from 'node:path';
+import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
+const env = { ...process.env, [pathKey]: `${join(homedir(), '.cargo', 'bin')}${delimiter}${process.env[pathKey] ?? ''}` };
+const child = spawn(process.execPath, [join(root, 'node_modules/@tauri-apps/cli/tauri.js'), ...process.argv.slice(2)], { cwd: join(root, 'apps/desktop'), env, stdio: 'inherit' });
+child.on('error', (e) => { console.error(e.message); process.exitCode = 1; });
+child.on('exit', (code) => { process.exitCode = code ?? 1; });

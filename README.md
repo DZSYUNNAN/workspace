@@ -1,5 +1,19 @@
 # Modular Personal Workspace (MPW)
 
+## 稳定可用版 0.2.1
+
+Windows 安装包与 Web 静态资源由 `npm run desktop:build` 及 `npm run build` 生成。
+日常使用与迁移说明见 [docs/STABLE-GUIDE.md](docs/STABLE-GUIDE.md)，验收记录见 [docs/STABILIZATION.md](docs/STABILIZATION.md)。
+
+```powershell
+npm ci
+npm run check
+npm start              # 固定 http://localhost:8080，优先运行最新构建
+npm run desktop:build  # Windows，需要 Rust 和 Visual Studio C++ Build Tools
+```
+
+开发工作位于 `feat/stable-workspace` 分支；原始 Arena 分支保留。
+
 **One application + modular plugins + customizable workspaces + unified data + AI assistance.**
 A personal digital productivity operating system for Windows & mobile — workspace shell, plugin platform, unified local-first data, AI context. The product is the *platform*; Email, Notes, References, Writing, Files and AI are plugins.
 

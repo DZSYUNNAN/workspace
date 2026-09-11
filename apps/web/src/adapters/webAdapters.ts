@@ -1,6 +1,7 @@
 import initSqlJs from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { SqlJsAdapter, type BlobStoreAdapter, type DbAdapter, type StoredBlob } from '@mpw/kernel';
+import { DurableDb } from './durableDb';
 
 /* ------------------------- SQLite (sql.js + IndexedDB) ------------------------- */
 
@@ -36,16 +37,15 @@ async function idbPut(db: IDBDatabase, store: string, key: string, value: unknow
 }
 
 /** SQLite over sql.js, persisted to IndexedDB with debounced saves. */
-export class PersistedDbAdapter implements DbAdapter {
-  private saveTimer: number | null = null;
+export class PersistedDbAdapter extends DurableDb {
   private constructor(
-    private inner: SqlJsAdapter,
+    inner: SqlJsAdapter,
     private idb: IDBDatabase
-  ) {}
+  ) { super(inner, (bytes) => idbPut(idb, KV_STORE, DB_FILE_KEY, bytes.slice().buffer)); }
 
-  static async open(locateFileOverride?: (file: string) => string): Promise<PersistedDbAdapter> {
+  static async open(locateFileOverride?: (file: string) => string, databaseName = DB_NAME): Promise<PersistedDbAdapter> {
     const SQL = await initSqlJs({ locateFile: locateFileOverride ?? (() => wasmUrl) });
-    const idb = await openIdb(DB_NAME, 1, (db) => {
+    const idb = await openIdb(databaseName, 1, (db) => {
       if (!db.objectStoreNames.contains(KV_STORE)) db.createObjectStore(KV_STORE);
       if (!db.objectStoreNames.contains(BLOB_STORE)) db.createObjectStore(BLOB_STORE);
     });
@@ -54,41 +54,25 @@ export class PersistedDbAdapter implements DbAdapter {
     return new PersistedDbAdapter(new SqlJsAdapter(database), idb);
   }
 
-  private scheduleSave(): void {
-    if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
-    this.saveTimer = window.setTimeout(() => {
-      this.saveTimer = null;
-      const bytes = this.inner.export();
-      void idbPut(this.idb, KV_STORE, DB_FILE_KEY, bytes.buffer.slice(bytes.byteOffset));
-    }, 600);
+  async restore(bytes: Uint8Array, blobs: Record<string, Uint8Array>): Promise<void> {
+    await this.exclusive(() => new Promise<void>((resolve, reject) => {
+      const tx = this.idb.transaction([KV_STORE, BLOB_STORE], 'readwrite');
+      try {
+      // Previous complete workspace stays recoverable in the same atomic transaction.
+      const kv = tx.objectStore(KV_STORE);
+      kv.put(this.export().slice().buffer, 'mpw.before-restore.sqlite');
+      kv.put(bytes.slice().buffer, DB_FILE_KEY);
+      const store = tx.objectStore(BLOB_STORE);
+      // Keep old blobs for recovery; imported refs have already been validated.
+      for (const [ref, data] of Object.entries(blobs)) store.put({ bytes: data.slice().buffer }, ref);
+      } catch (error) { tx.abort(); reject(error); return; }
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error('恢复事务已取消'));
+      tx.onerror = () => reject(tx.error);
+    }), true);
   }
-
-  run(sql: string, params?: unknown[]): void {
-    this.inner.run(sql, params);
-    this.scheduleSave();
-  }
-  all(sql: string, params?: unknown[]): Record<string, unknown>[] {
-    return this.inner.all(sql, params);
-  }
-  one(sql: string, params?: unknown[]): Record<string, unknown> | null {
-    return this.inner.one(sql, params);
-  }
-  exec(sql: string): void {
-    this.inner.exec(sql);
-    this.scheduleSave();
-  }
-  transaction<T>(fn: () => T): T {
-    try {
-      return this.inner.transaction(fn);
-    } finally {
-      this.scheduleSave();
-    }
-  }
-  export(): Uint8Array {
-    return this.inner.export();
-  }
-  close(): void {
-    this.inner.close();
+  override close(): void {
+    super.close(); this.idb.close();
   }
 }
 
@@ -96,10 +80,11 @@ export class PersistedDbAdapter implements DbAdapter {
 
 export class IndexedDbBlobStore implements BlobStoreAdapter {
   private db: IDBDatabase | null = null;
+  constructor(private databaseName = DB_NAME) {}
 
   private async conn(): Promise<IDBDatabase> {
     if (!this.db) {
-      this.db = await openIdb(DB_NAME, 1, (d) => {
+      this.db = await openIdb(this.databaseName, 1, (d) => {
         if (!d.objectStoreNames.contains(KV_STORE)) d.createObjectStore(KV_STORE);
         if (!d.objectStoreNames.contains(BLOB_STORE)) d.createObjectStore(BLOB_STORE);
       });

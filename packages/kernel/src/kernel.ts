@@ -98,11 +98,10 @@ export class Kernel {
     this.blobs = new BlobStore(opts.blobStore ?? new MemoryBlobStore(), this.db);
     this.secrets = opts.secretStore ?? new MemorySecretStore();
     this.ai = new AiGateway(
-      () => ({
-        providerId: this.settings.get('ai.provider', 'demo'),
-        baseUrl: this.settings.get<string | undefined>('ai.baseUrl', undefined),
-        model: this.settings.get<string | undefined>('ai.model', undefined),
-      }),
+      () => {
+        const providerId = this.settings.get('ai.provider', 'demo');
+        return { providerId, baseUrl: this.settings.get<string | undefined>(`ai.providers.${providerId}.baseUrl`, undefined), model: this.settings.get<string | undefined>(`ai.providers.${providerId}.model`, undefined) };
+      },
       (providerId) => this.secrets.get(`ai.key.${providerId}`)
     );
     this.latex = new LatexService(this.bgTasks);
@@ -121,6 +120,12 @@ export class Kernel {
     const result = migrate(this.db, CORE_MIGRATIONS);
     this.logger.info(`schema at v${result.current} (applied ${result.applied.length})`);
     this.settings.hydrate();
+    const legacyProvider = this.settings.get('ai.provider', 'demo');
+    for (const key of ['baseUrl', 'model']) {
+      const previous = this.settings.get<string | undefined>(`ai.${key}`, undefined);
+      if (previous && !this.settings.has(`ai.providers.${legacyProvider}.${key}`)) this.settings.set(`ai.providers.${legacyProvider}.${key}`, previous);
+      if (previous) this.settings.set(`ai.${key}`, undefined);
+    }
     this.workspaces.ensureDefault();
     this.seedBuiltinPresets();
     this.seedPluginRows();

@@ -1,23 +1,33 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../state';
 import { getTheme, setTheme, type ThemeMode } from '../theme';
 import { Icon } from '../components/Icon';
+import { DataSettings } from './DataSettings';
+import { APP_VERSION } from './StatusBar.version';
 
 export function SettingsView(): React.ReactElement {
   const { kernel, refresh, workspaceId, setWorkspaceId } = useApp();
   const providers = kernel.ai.listProviders();
   const currentProvider = kernel.settings.get('ai.provider', 'demo');
-  const [baseUrl, setBaseUrl] = useState(kernel.settings.get<string>('ai.baseUrl', ''));
-  const [model, setModel] = useState(kernel.settings.get<string>('ai.model', ''));
+  const [baseUrl, setBaseUrl] = useState(kernel.settings.get<string>(`ai.providers.${currentProvider}.baseUrl`, ''));
+  const [model, setModel] = useState(kernel.settings.get<string>(`ai.providers.${currentProvider}.model`, ''));
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [keySaved, setKeySaved] = useState<Record<string, boolean>>({});
   const [newWsName, setNewWsName] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState('');
+  useEffect(() => {
+    setBaseUrl(kernel.settings.get<string>(`ai.providers.${currentProvider}.baseUrl`, ''));
+    setModel(kernel.settings.get<string>(`ai.providers.${currentProvider}.model`, ''));
+    setTestResult('');
+  }, [currentProvider]);
   const workspaces = kernel.workspaces.list();
 
   return (
     <div className="view">
-      <h1>Settings</h1>
-      <p className="sub">Local-first configuration. Secrets go to OS-grade storage — never the database.</p>
+      <h1>设置</h1>
+      <DataSettings />
+      <p className="sub">本地保存。密钥由桌面凭据管理器或浏览器加密存储保护。</p>
 
       <h2>Appearance</h2>
       <div className="card" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -31,6 +41,13 @@ export function SettingsView(): React.ReactElement {
 
       <h2>AI provider</h2>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p>先保存接口和密钥，再测试连接。测试仅发送一句测试文本，不读取工作台内容。</p>
+        <button className="btn" disabled={testing} onClick={() => {
+          setTesting(true); setTestResult('');
+          void kernel.ai.run('Reply with OK.', { maxTokens: 16 }).then((result) => setTestResult(`${result.provider === 'demo' ? '离线演示' : '连接成功'}：${result.text}`))
+            .catch((e) => setTestResult(`连接失败：${e instanceof Error ? e.message : String(e)}`)).finally(() => setTesting(false));
+        }}>{testing ? '正在测试…' : '测试已保存的连接'}</button>
+        <p role="status">{testResult}</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {providers.map((p) => (
             <button key={p.id} className={`btn sm${currentProvider === p.id ? ' primary' : ''}`} onClick={() => { kernel.settings.set('ai.provider', p.id); refresh(); }}>
@@ -50,8 +67,8 @@ export function SettingsView(): React.ReactElement {
           <button
             className="btn"
             onClick={() => {
-              kernel.settings.set('ai.baseUrl', baseUrl.trim() || undefined);
-              kernel.settings.set('ai.model', model.trim() || undefined);
+              kernel.settings.set(`ai.providers.${currentProvider}.baseUrl`, baseUrl.trim() || undefined);
+              kernel.settings.set(`ai.providers.${currentProvider}.model`, model.trim() || undefined);
               kernel.events.emit('notify', { message: 'AI endpoint settings saved', kind: 'success' });
               refresh();
             }}
@@ -162,7 +179,7 @@ export function SettingsView(): React.ReactElement {
 
       <h2>About</h2>
       <div className="card" style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.7 }}>
-        Modular Personal Workspace v0.1.0 — local-first personal productivity platform.<br />
+        Modular Personal Workspace v{APP_VERSION} — local-first personal productivity platform.<br />
         Architecture: React shell + plugin kernel + SQLite (sql.js/IndexedDB profile) + pluggable AI providers.<br />
         See ARCHITECTURE.md, PLUGIN_SPEC.md, DATABASE.md in the repository.
       </div>

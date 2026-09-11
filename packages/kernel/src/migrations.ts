@@ -4,11 +4,13 @@ export interface Migration {
   version: number;
   name: string;
   up(db: DbAdapter): void;
+  legacy?: { canonical: string; checksums: string[] };
 }
 
-function checksum(up: (db: DbAdapter) => void): string {
+function checksum(up: (db: DbAdapter) => void, sqlOnly = false): string {
   // Stable content hash of the migration body — detects edited history (DATABASE.md §5).
-  const src = up.toString();
+  const raw = up.toString();
+  const src = sqlOnly ? [...raw.matchAll(/\.exec\(\s*`([\s\S]*?)`\s*\)/g)].map((m) => m[1].trim().replace(/\s+/g, ' ')).join('\n') : raw;
   let h = 5381;
   for (let i = 0; i < src.length; i++) h = ((h << 5) + h + src.charCodeAt(i)) | 0;
   return (h >>> 0).toString(16);
@@ -39,7 +41,13 @@ export function migrate(db: DbAdapter, migrations: Migration[]): MigrationResult
   for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
     const known = appliedMap.get(m.version);
     if (known !== undefined) {
-      const expected = checksum(m.up);
+      const expected = checksum(m.up, !!m.legacy);
+      // v0.1 hashed JavaScript function text, which differs between dev and
+      // minified releases. Upgrade only recognized, unchanged core SQL bodies.
+      if (m.legacy && expected === m.legacy.canonical && (m.legacy.checksums.includes(known) || known === checksum(m.up))) {
+        db.run('UPDATE schema_migrations SET checksum = ? WHERE version = ?', [expected, m.version]);
+        continue;
+      }
       if (known !== expected) {
         throw new Error(
           `migration ${m.version} (${m.name}) checksum mismatch — history was edited. ` +
@@ -52,7 +60,7 @@ export function migrate(db: DbAdapter, migrations: Migration[]): MigrationResult
       m.up(db);
       db.run(
         'INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)',
-        [m.version, m.name, checksum(m.up), Date.now()]
+        [m.version, m.name, checksum(m.up, !!m.legacy), Date.now()]
       );
     });
     applied.push(m.version);
@@ -66,6 +74,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   {
     version: 1,
     name: 'core-tables',
+    legacy: { canonical: 'cd891b90', checksums: ['2993013c'] },
     up(db) {
       db.exec(`
         CREATE TABLE workspaces (
@@ -127,6 +136,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   {
     version: 2,
     name: 'move-projects-domain-to-plugin',
+    legacy: { canonical: '11ad9b34', checksums: ['2857382c'] },
     /*
      * Phase 2 架构修正:项目域归 mpw.projects 插件所有(表 p_projects_*),
      * 核心不再承载任何插件业务表。旧表若已存在则移交后删除。

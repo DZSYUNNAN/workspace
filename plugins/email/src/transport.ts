@@ -87,11 +87,11 @@ export class RelayImapTransport implements MailTransport {
   }
 }
 
-export function getTransport(ctx: PluginContext, kind: string): MailTransport {
+export async function getTransport(ctx: PluginContext, kind: string): Promise<MailTransport> {
   if (kind === 'relay-imap') {
-    const relayUrl = ctx.storage.get('mail.relayUrl', '');
+    const relayUrl = await ctx.storage.get('mail.relayUrl', '');
     if (relayUrl && typeof relayUrl === 'string') return new RelayImapTransport(relayUrl);
   }
-  // graph / gmail 在桌面壳可用前回退到 demo(UI 保持可测)
-  return new DemoTransport();
+  if (kind === 'demo') return new DemoTransport();
+  throw new Error(kind === 'relay-imap' ? '请先配置邮件中转服务' : '此邮箱服务尚未接入真实收发，请使用演示账户或配置中转服务');
 }

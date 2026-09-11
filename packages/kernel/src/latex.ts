@@ -13,6 +13,8 @@ export interface LatexCompileRequest {
   source: string;
   engine?: LatexEngine;
   jobName?: string;
+  entry?: string;
+  files?: Record<string, string>;
 }
 
 export interface LatexCompileResult {

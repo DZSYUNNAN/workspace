@@ -38,8 +38,9 @@ export class BlobStore {
   constructor(private adapter: BlobStoreAdapter, private db: import('./db').DbAdapter) {}
 
   async put(path: string, data: Blob | Uint8Array, mime = 'application/octet-stream'): Promise<BlobRefMeta> {
-    const bytes = data instanceof Uint8Array ? data : new Uint8Array(await data.arrayBuffer());
-    const ref = hashBytes(bytes);
+    const bytes = ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(await data.arrayBuffer());
+    const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.slice().buffer));
+    const ref = `b_${[...hash].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
     await this.adapter.put(ref, bytes);
     const existing = this.db.one('SELECT ref FROM blob_meta WHERE ref = ?', [ref]);
     if (!existing) {
@@ -59,8 +60,10 @@ export class BlobStore {
   }
 
   async delete(ref: string): Promise<void> {
-    await this.adapter.delete(ref);
-    this.db.run('DELETE FROM blob_meta WHERE ref = ?', [ref]);
+    // Blobs are shared and immutable. A plugin removes its own reference; physical
+    // deletion needs a global reference scan, including soft-deleted resources.
+    // Retain bytes and metadata until a dedicated, recoverable GC is available.
+    void ref;
   }
 
   list(prefix?: string): BlobRefMeta[] {

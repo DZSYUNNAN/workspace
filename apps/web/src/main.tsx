@@ -14,24 +14,33 @@ import filesPlugin from '@mpw/plugin-files';
 import tasksPlugin from '@mpw/plugin-tasks';
 import projectsPlugin from '@mpw/plugin-projects';
 import aiPlugin from '@mpw/plugin-ai';
-import { detectDesktopShell } from './adapters/desktop';
+import { detectDesktopShell, isTauri, openDesktopData, desktopSecrets } from './adapters/desktop';
 import './styles.css';
 import 'katex/dist/katex.min.css';
+import type { WorkspaceData } from './adapters/backup';
+import { registerResources } from './resources';
+
+const rootEl = document.getElementById('root');
+if (!rootEl) throw new Error('missing #root');
+const root = createRoot(rootEl);
 
 async function boot(): Promise<void> {
-  const rootEl = document.getElementById('root');
-  if (!rootEl) throw new Error('missing #root');
-  createRoot(rootEl).render(
+  root.render(
     <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#5c6370' }}>
       正在启动 ModuDesk…
     </div>
   );
 
-  const db = await PersistedDbAdapter.open();
+  const data: WorkspaceData = await (async () => {
+    if (isTauri()) return openDesktopData();
+    const db = await PersistedDbAdapter.open();
+    return { db, blobs: new IndexedDbBlobStore(), restore: (bytes: Uint8Array, files: Record<string, Uint8Array>) => db.restore(bytes, files), location: `当前浏览器（${window.location.origin}）` };
+  })();
+  const { db, blobs } = data;
   const kernel = new Kernel({
     db,
-    blobStore: new IndexedDbBlobStore(),
-    secretStore: new WebCryptoSecretStore(),
+    blobStore: blobs,
+    secretStore: isTauri() ? desktopSecrets : new WebCryptoSecretStore(),
     logger: {
       debug: (...a) => console.debug(...a),
       info: (...a) => console.info(...a),
@@ -46,17 +55,48 @@ async function boot(): Promise<void> {
     emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin,
   ]);
   const report = await kernel.boot();
+  registerResources(kernel, db);
   if (report.failed.length > 0) {
     console.error('plugins failed to activate:', report.failed);
   }
 
-  createRoot(rootEl).render(
+  await db.flush();
+  if (isTauri()) {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const win = getCurrentWindow();
+    await win.onCloseRequested(async (event) => {
+      event.preventDefault();
+      try { await db.flush(); await win.destroy(); }
+      catch (e) { kernel.events.emit('notify', { kind: 'error', message: `关闭前保存失败：${e}` }); }
+    });
+  }
+  window.addEventListener('beforeunload', (event) => {
+    if (db.state.phase !== 'saved') { event.preventDefault(); event.returnValue = ''; void db.flush().catch(() => {}); }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void db.flush().catch(() => {});
+  });
+  root.render(
     <React.StrictMode>
-      <AppProvider kernel={kernel}>
+      <AppProvider kernel={kernel} data={data}>
         <App />
       </AppProvider>
     </React.StrictMode>
   );
 }
 
-void boot();
+function failure(error: unknown): void {
+  root.render(<div style={{ padding: 32 }}><h1>工作台未能启动</h1><p role="alert">{error instanceof Error ? error.message : String(error)}</p><button onClick={() => window.location.reload()}>重新打开</button></div>);
+}
+// Keep one writer per origin; two independent SQL snapshots must never overwrite each other.
+if (isTauri()) {
+  void boot().catch(failure);
+} else if (navigator.locks) {
+  void navigator.locks.request('modudesk-workspace-writer', { ifAvailable: true }, async (lock) => {
+    if (!lock) throw new Error('工作台已在另一个窗口打开。请先关闭另一个窗口，再重新打开此页。');
+    await boot();
+    await new Promise<void>(() => {});
+  }).catch(failure);
+} else {
+  failure(new Error('当前浏览器不支持安全的单窗口存储，请使用新版 Edge、Chrome 或桌面版。'));
+}

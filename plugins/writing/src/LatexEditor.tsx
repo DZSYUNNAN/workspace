@@ -11,6 +11,7 @@ import { renderLatex } from './latex';
 export function LatexEditor(props: { value: string; onChange: (v: string) => void }): React.ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const syncing = useRef(false);
   const onChangeRef = useRef(props.onChange);
   onChangeRef.current = props.onChange;
   const [debounced, setDebounced] = useState(props.value);
@@ -32,7 +33,7 @@ export function LatexEditor(props: { value: string; onChange: (v: string) => voi
           highlightSelectionMatches(),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) onChangeRef.current(u.state.doc.toString());
+            if (u.docChanged && !syncing.current) onChangeRef.current(u.state.doc.toString());
           }),
           EditorView.theme({
             '&': { height: '100%', background: 'var(--panel)' },
@@ -56,9 +57,11 @@ export function LatexEditor(props: { value: string; onChange: (v: string) => voi
     if (!view) return;
     const current = view.state.doc.toString();
     if (props.value !== current) {
+      syncing.current = true;
       view.dispatch({
         changes: { from: 0, to: current.length, insert: props.value },
       });
+      syncing.current = false;
     }
   }, [props.value]);
 

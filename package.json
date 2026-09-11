@@ -1,7 +1,7 @@
 {
   "name": "mpw-monorepo",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Modular Personal Workspace — workspace shell + plugin platform",
   "type": "module",
   "workspaces": [
@@ -10,6 +10,10 @@
     "apps/*"
   ],
   "scripts": {
+    "start": "node release/server.mjs",
+    "desktop:dev": "node tools/desktop.mjs dev",
+    "desktop:build": "node tools/desktop.mjs build",
+    "check": "npm run typecheck && npm test && npm run build",
     "dev": "npm run dev -w @mpw/app",
     "build": "npm run build -w @mpw/app",
     "preview": "npm run preview -w @mpw/app",
@@ -18,6 +22,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^22.10.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

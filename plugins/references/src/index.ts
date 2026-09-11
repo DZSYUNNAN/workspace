@@ -3,6 +3,7 @@ import { definePlugin, type PluginContext } from '@mpw/kernel';
 import { truncate } from '@mpw/shared';
 import { listRefs, parseAuthors } from './store';
 import { LibraryView } from './LibraryView';
+import { formatCitation } from './citations';
 
 let ctxRef: PluginContext | null = null;
 let selectedId: string | null = null;
@@ -21,7 +22,7 @@ export default definePlugin({
     contributions: {
       widgets: [{ id: 'library', title: '文献库', icon: 'book', defaultArea: 'center', minW: 300 }],
       routes: [{ id: 'main', title: '文献', icon: 'book', showInSidebar: true, order: 20 }],
-      commands: [{ id: 'import', title: '文献: 导入…', category: '文献' }],
+      commands: [{ id: 'import', title: '文献: 导入…', category: '文献' }, { id: 'citations', title: '文献: 引用数据', category: '文献' }],
       searchProviders: [
         {
           id: 'references',
@@ -82,6 +83,10 @@ export default definePlugin({
     ctxRef = ctx;
     const { initSchema } = await import('./store');
     await initSchema(ctx);
+    ctx.commands.register('mpw.references.citations', async () => (await listRefs(ctx)).map((r) => {
+      const record = { citationKey: r.citation_key, entryType: r.entry_type, title: r.title, authors: parseAuthors(r.authors), venue: r.venue, year: r.year, doi: r.doi, volume: r.volume, number: r.number, pages: r.pages, publisher: r.publisher };
+      return { id: r.id, title: r.title, key: r.citation_key, text: formatCitation('apa', record), bib: formatCitation('bibtex', record) };
+    }));
 
     const viewProps = {
       ctx,

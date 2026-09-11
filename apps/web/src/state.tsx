@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Kernel } from '@mpw/kernel';
 import type { LayoutState } from '@mpw/shared';
+import type { WorkspaceData } from './adapters/backup';
 
 export type AppRoute =
   | { type: 'home' }
@@ -15,6 +16,7 @@ export interface Toast {
 }
 
 interface AppCtx {
+  data?: WorkspaceData;
   kernel: Kernel;
   version: number;
   refresh: () => void;
@@ -38,7 +40,7 @@ export function useApp(): AppCtx {
   return ctx;
 }
 
-export function AppProvider({ kernel, children }: { kernel: Kernel; children: React.ReactNode }): React.ReactElement {
+export function AppProvider({ kernel, children, data }: { kernel: Kernel; children: React.ReactNode; data?: WorkspaceData }): React.ReactElement {
   const [version, setVersion] = useState(0);
   const [route, setRoute] = useState<AppRoute>({ type: 'home' });
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -83,6 +85,11 @@ export function AppProvider({ kernel, children }: { kernel: Kernel; children: Re
   // system event wiring → UI refresh + toasts
   useEffect(() => {
     const offs = [
+      kernel.events.on('workspace:navigate', (payload) => {
+        const { plugin, id } = payload as { plugin: string; id: string };
+        setRoute({ type: 'pluginRoute', key: `${plugin}/main` });
+        kernel.events.emit(`ui:open:${plugin}`, { hit: { id: `${plugin}:resource:${id}` } });
+      }),
       kernel.events.on('plugins:changed', () => refresh()),
       kernel.events.on('settings:changed', () => refresh()),
       kernel.events.on('notify', (p) => {
@@ -108,6 +115,7 @@ export function AppProvider({ kernel, children }: { kernel: Kernel; children: Re
 
   const value = useMemo<AppCtx>(
     () => ({
+      data,
       kernel,
       version,
       refresh,
@@ -122,7 +130,7 @@ export function AppProvider({ kernel, children }: { kernel: Kernel; children: Re
       aiPanelOpen,
       setAiPanelOpen,
     }),
-    [kernel, version, refresh, route, workspaceId, setWorkspaceId, layout, setLayout, toasts, pushToast, aiPanelOpen]
+    [data, kernel, version, refresh, route, workspaceId, setWorkspaceId, layout, setLayout, toasts, pushToast, aiPanelOpen]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

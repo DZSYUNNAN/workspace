@@ -1,39 +1,35 @@
-# ModuDesk for Windows(Tauri 2 桌面壳)
+# ModuDesk 0.2.1 Windows 桌面版
 
-Web 外壳与本仓库 `apps/web` 完全同源;本目录只包含原生适配层。
-打包后获得真正的 Windows 10/11 应用:任务栏/窗口管理、本地文件系统、
-**XeLaTeX / LuaLaTeX / pdfLaTeX 本地编译**、OS 钥匙串(下一迭代接入)。
+桌面版与 Web 共用界面和 SQL 引擎。SQLite 快照及附件保存在原生应用数据目录；密钥使用 Windows 凭据管理器。使用和迁移步骤见 [稳定版指南](../../docs/STABLE-GUIDE.md)。
 
-## 前置要求(Windows)
+## 构建
 
-1. [Node.js ≥ 18](https://nodejs.org)
-2. [Rust](https://rustup.dev)(MSVC toolchain + Visual Studio Build Tools)
-3. TeX 发行版(用于本地编译):[TeX Live](https://tug.org/texlive/) 或 [MiKTeX](https://miktex.org),确保 `xelatex` 在 PATH
-
-## 开发运行
+需要 Node.js 22、Rust stable MSVC、Visual Studio C++ Build Tools 和 WebView2。
+在仓库根目录执行：
 
 ```powershell
-# 仓库根目录
-npm install
-npm run build            # 先产出 apps/web/dist
-cd apps/desktop/src-tauri
-cargo tauri dev          # 或: cargo install tauri-cli --version ^2 && cargo tauri dev
+npm ci
+npm run desktop:dev
+# 发布构建自动先构建 Web
+npm run desktop:build
 ```
 
-## 打包安装程序
+输出 `src-tauri/target/release/modudesk.exe` 及 `src-tauri/target/release/bundle/nsis/ModuDesk_0.2.1_x64-setup.exe`。当前只生成 NSIS 安装包，未代码签名。
+
+## 原生能力
+
+- 单实例窗口；正常关闭前等待数据库保存。
+- SQLite 快照原子替换，恢复先建立完整数据代次再切换指针，保留上一代。
+- 附件读写与 Windows 凭据存取；未开放通用 shell 命令。
+- TeX 引擎白名单：XeLaTeX、LuaLaTeX、pdfLaTeX。支持工程内 `.tex` / `.bib`，按需运行 BibTeX；临时目录、路径校验、禁用 shell escape、每进程 60 秒超时。
+- TeX Live / MiKTeX 是独立前置依赖，安装器不捆绑它们。
+
+## 测试
 
 ```powershell
-cd apps/desktop/src-tauri
-cargo tauri build        # 产出 .msi / .nsis 安装包(target/release/bundle)
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+# 在 Windows 用户会话中，且安装 TeX 后运行完整集成检查
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked -- --include-ignored
 ```
 
-## 已暴露的原生命令
-
-| 命令 | 说明 |
-|---|---|
-| `compile_latex(source, engine, jobName)` | 临时目录内运行 TeX 引擎,返回 `{ ok, pdfBase64, log }` |
-| `reveal_in_explorer(path)` | 在资源管理器中显示文件 |
-
-前端在启动时检测 `window.__TAURI__` 并自动注册 native 编译适配器
-(`apps/web/src/adapters/desktop.ts`),写作插件的「本地编译 PDF」按钮随即可用;
-Web 配置下该按钮给出说明性提示。架构细节见 `ARCHITECTURE.md` §8。
+完整检查会创建并删除随机命名的测试凭据，并实际编译中文多文件参考文献工程；不读取个人密钥。

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import { Icon } from '@mpw/ui';
+import { escapeHtml } from '@mpw/shared';
 import {
   addFile,
   createDoc,
@@ -18,7 +19,7 @@ import { RichEditor } from './RichEditor';
 import { LatexEditor } from './LatexEditor';
 import { downloadBlob, htmlToDocxBlob } from './docx';
 
-export function WritingView(props: { ctx: PluginContext; compact?: boolean }): React.ReactElement {
+export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSelectedChange?: (id: string | null) => void }): React.ReactElement {
   const { ctx } = props;
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -27,7 +28,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [compileMsg, setCompileMsg] = useState<string | null>(null);
-  const saveTimer = useRef<number | null>(null);
+  const [citations, setCitations] = useState<{ id: string; title: string; key: string; text: string; bib: string }[] | null>(null);
 
   const reload = async (): Promise<void> => setDocs(await listDocs(ctx));
 
@@ -41,6 +42,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
 
   // 载入 LaTeX 工程文件
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       if (!activeId || active?.mode !== 'latex') {
         setFiles([]);
@@ -48,6 +50,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
         return;
       }
       const list = await listFiles(ctx, activeId);
+      if (cancelled) return;
       setFiles(list);
       setActiveFileId((prev) => (prev && list.some((f) => f.id === prev) ? prev : (list[0]?.id ?? null)));
       // 兼容 v1 数据:content 里已有主文件但 files 表为空 → 迁移
@@ -55,50 +58,44 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
         const { addFile, saveFile } = await import('./store');
         const f = await addFile(ctx, activeId, 'main.tex');
         await saveFile(ctx, f.id, active.content);
+        if (cancelled) return;
         setFiles(await listFiles(ctx, activeId));
         setActiveFileId(f.id);
       }
     })();
+    return () => { cancelled = true; };
   }, [activeId, active?.mode]);
 
-  const activeFile = files.find((f) => f.id === activeFileId) ?? null;
+  const activeFile = files.find((f) => f.id === activeFileId && f.doc_id === activeId) ?? null;
 
   useEffect(() => {
     setDraft({ title: active?.title ?? '', content: activeFile?.content ?? active?.content ?? '' });
     setDirty(false);
-  }, [activeId, activeFileId]);
+  }, [activeId, activeFileId, !!active, !!activeFile]);
 
-  const scheduleSave = (): void => {
+  const updateDraft = (updater: (value: typeof draft) => typeof draft): void => {
+    const next = updater(draft);
+    setDraft(next);
     if (!active) return;
     setDirty(true);
-    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(async () => {
-      if (active.mode === 'latex' && activeFile) {
-        await saveFile(ctx, activeFile.id, draft.content);
-        if (draft.title !== active.title) await updateDoc(ctx, active.id, { title: draft.title });
-      } else {
-        const fields: Record<string, unknown> = {};
-        if (draft.title !== active.title) fields['title'] = draft.title;
-        if (draft.content !== active.content) fields['content'] = draft.content;
-        if (Object.keys(fields).length > 0) {
-          const sets = Object.keys(fields).map((k) => `${k} = ?`);
-          await ctx.storage.sql.exec(
-            `UPDATE p_writing_documents SET ${[...sets, 'updated_at = ?'].join(', ')} WHERE id = ?`,
-            [...Object.values(fields), Date.now(), active.id]
-          );
-        }
-      }
-      setDirty(false);
-      ctx.events.emit('docs:changed', { id: active.id });
-    }, 600);
+    const writes = [updateDoc(ctx, active.id, { title: next.title, ...(active.mode === 'rich' || activeFile?.name === 'main.tex' ? { content: next.content } : {}) })];
+    if (active.mode === 'latex' && activeFile) {
+      writes.push(saveFile(ctx, activeFile.id, next.content));
+      setFiles((list) => list.map((f) => f.id === activeFile.id ? { ...f, content: next.content } : f));
+    }
+    void Promise.all(writes).then(() => {
+      setDirty(false); ctx.events.emit('docs:changed', { id: active.id });
+    }).catch((e) => ctx.ui.notify(String(e), 'error'));
   };
-
+  useEffect(() => { props.onSelectedChange?.(activeId); if (activeId) void ctx.storage.set('ui.openId', activeId); }, [activeId]);
   useEffect(() => {
-    scheduleSave();
-    return () => {
-      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-    };
-  }, [draft]);
+    const requested = ctx.storage.get<string | null>('ui.openId', null);
+    void requested.then((id) => { if (id) setActiveId(id); });
+    return ctx.events.on('ui:open:mpw.writing', (p) => {
+      const id = (p as { hit?: { id: string } }).hit?.id.split(':').pop();
+      if (id) { void reload(); setActiveId(id); }
+    });
+  }, []);
 
   const exportDocx = async (): Promise<void> => {
     if (!active) return;
@@ -117,8 +114,10 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
     if (!active || active.mode !== 'latex') return;
     setCompileMsg(null);
     const engine = (await ctx.settings.get<string>('engine', 'xelatex')) as 'xelatex' | 'lualatex' | 'pdflatex';
-    const source = activeFile?.name.endsWith('.tex') ? draft.content : (files.find((f) => f.name.endsWith('.tex'))?.content ?? draft.content);
-    const result = await ctx.latex.compile({ source, engine, jobName: 'modudesk' });
+    const projectFiles = Object.fromEntries(files.map((f) => [f.name, f.id === activeFileId ? draft.content : f.content]));
+    const entry = files.find((f) => f.name === 'main.tex')?.name ?? files.find((f) => f.name.endsWith('.tex'))?.name ?? 'main.tex';
+    const source = projectFiles[entry] ?? draft.content;
+    const result = await ctx.latex.compile({ source, engine, jobName: 'modudesk', entry, files: projectFiles });
     setCompileMsg(result.log);
     if (result.ok && result.pdfBytes) {
       downloadBlob(new Blob([result.pdfBytes.buffer.slice(result.pdfBytes.byteOffset) as ArrayBuffer], { type: 'application/pdf' }), 'modudesk.pdf');
@@ -189,11 +188,12 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
         {active ? (
           <>
             <div className="widget-toolbar">
+              <button className="btn sm" onClick={() => void ctx.commands.execute('mpw.references.citations').then((r) => setCitations(r as NonNullable<typeof citations>)).catch(() => ctx.ui.notify('请先启用文献插件', 'warn'))}>插入引用</button>
               <input
                 className="input"
                 style={{ flex: 1, fontWeight: 600 }}
                 value={draft.title}
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                onChange={(e) => updateDraft((d) => ({ ...d, title: e.target.value }))}
               />
               <span className="badge gray">{active.mode === 'latex' ? 'LaTeX' : '富文本'}</span>
               <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{dirty ? '保存中…' : `${words} 词`}</span>
@@ -224,8 +224,28 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
                 <Icon name="trash" size={12} />
               </button>
             </div>
+            {citations && <div className="card" style={{ maxHeight: 220, overflow: 'auto' }}>
+              <b>选择文献，追加引用到文档末尾</b><button className="btn sm" onClick={() => setCitations(null)}>关闭</button>
+              {citations.length === 0 && <p>请先在文献库导入文献。</p>}
+              {citations.map((c) => <button key={c.id} className="list-row" onClick={() => {
+                if (active.mode === 'rich') {
+                  updateDraft((d) => ({ ...d, content: `${d.content}<p>${escapeHtml(c.text)}</p>` }));
+                } else {
+                  if (!/^[a-zA-Z0-9_:.+-]+$/.test(c.key)) { ctx.ui.notify('请先为文献设置有效的 BibTeX 引用键', 'warn'); return; }
+                  if (!activeFile?.name.endsWith('.tex')) { ctx.ui.notify('请先选择一个 .tex 文件', 'warn'); return; }
+                  const cite = `\\cite{${c.key}}`;
+                  updateDraft((d) => ({ ...d, content: d.content.includes('\\end{document}') ? d.content.replace('\\end{document}', `${cite}\n\\end{document}`) : `${d.content}\n${cite}` }));
+                  void (async () => {
+                    const bib = files.find((f) => f.name === 'references.bib') ?? await addFile(ctx, active.id, 'references.bib');
+                    if (!bib.content.includes(`{${c.key},`)) await saveFile(ctx, bib.id, `${bib.content}\n${c.bib}`);
+                    setFiles(await listFiles(ctx, active.id));
+                  })().catch((e) => ctx.ui.notify(String(e), 'error'));
+                }
+                setCitations(null);
+              }}>{c.title}</button>)}
+            </div>}
             {active.mode === 'rich' ? (
-              <RichEditor ctx={ctx} value={draft.content} onChange={(html) => setDraft((d) => ({ ...d, content: html }))} />
+              <RichEditor key={active.id} ctx={ctx} value={draft.content} onChange={(html) => updateDraft((d) => ({ ...d, content: html }))} />
             ) : (
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                 <div className="latex-filetabs">
@@ -265,7 +285,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean }): R
                     <Icon name="plus" size={12} />
                   </button>
                 </div>
-                <LatexEditor value={draft.content} onChange={(v) => setDraft((d) => ({ ...d, content: v }))} />
+                <LatexEditor key={`${active.id}/${activeFileId}`} value={draft.content} onChange={(v) => updateDraft((d) => ({ ...d, content: v }))} />
                 {compileMsg && <div className="err-panel">{compileMsg}</div>}
               </div>
             )}
