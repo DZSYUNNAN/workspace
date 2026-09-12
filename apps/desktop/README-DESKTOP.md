@@ -1,4 +1,4 @@
-# ModuDesk 0.4.0 Windows 桌面版
+# ModuDesk 0.5.0 Windows 桌面版
 
 桌面版与 Web 共用界面和 SQL 引擎。SQLite 快照及附件保存在原生应用数据目录；密钥使用 Windows 凭据管理器。使用和迁移步骤见 [稳定版指南](../../docs/STABLE-GUIDE.md)。
 
@@ -14,7 +14,7 @@ npm run desktop:dev
 npm run desktop:build
 ```
 
-输出 `src-tauri/target/release/modudesk.exe` 及 `src-tauri/target/release/bundle/nsis/ModuDesk_0.4.0_x64-setup.exe`。当前只生成 NSIS 安装包，未代码签名。
+输出 `src-tauri/target/release/modudesk.exe` 及 `src-tauri/target/release/bundle/nsis/ModuDesk_0.5.0_x64-setup.exe`。当前只生成 NSIS 安装包，未代码签名。
 
 ## 原生能力
 

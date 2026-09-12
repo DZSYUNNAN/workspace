@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import { decodeDocument, extension } from '@mpw/shared';
 import { PdfReader } from './PdfReader';
-export function DocumentReader({ ctx, blobRef, fileName }: { ctx: PluginContext; blobRef: string; fileName: string }): React.ReactElement {
+export function DocumentReader({ ctx, blobRef, fileName, referenceId }: { ctx: PluginContext; blobRef: string; fileName: string; referenceId: string }): React.ReactElement {
   const [text, setText] = useState('正在读取…');
   useEffect(() => {
     let cancelled = false;
@@ -14,6 +14,6 @@ export function DocumentReader({ ctx, blobRef, fileName }: { ctx: PluginContext;
     })().then((value) => { if (!cancelled) setText(value); }).catch((e) => { if (!cancelled) setText(`预览不可用：${String(e instanceof Error ? e.message : e)}。可返回详情下载原文件。`); });
     return () => { cancelled = true; };
   }, [ctx, blobRef, fileName]);
-  if (extension(fileName) === 'pdf') return <PdfReader ctx={ctx} blobRef={blobRef} fileName={fileName} />;
+  if (extension(fileName) === 'pdf') return <PdfReader ctx={ctx} blobRef={blobRef} fileName={fileName} referenceId={referenceId} />;
   return <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.8, overflow: 'auto' }}>{text}</pre>;
 }

@@ -67,6 +67,11 @@ fn executable_path(name: &str) -> PathBuf {
         .find(|p| p.is_file())
         .unwrap_or_else(|| PathBuf::from(name))
 }
+fn executable_available(name: &str) -> bool {
+    let path = executable_path(name);
+    path.is_file()
+        || path.components().count() == 1 && Command::new(&path).arg("--version").output().is_ok()
+}
 fn run(dir: &Path, executable: &str, args: &[&str]) -> Result<String, String> {
     let log_path = dir.join("process.log");
     let stdout = fs::File::create(&log_path).map_err(|e| e.to_string())?;
@@ -176,22 +181,39 @@ pub fn compile_project(
     let entry_arg = format!("./{entry}");
     let job = format!("mpw-{}", uuid::Uuid::new_v4());
     let job_arg = format!("-jobname={job}");
-    let args = [
+    let engine_args = [
         "-no-shell-escape",
         "-interaction=nonstopmode",
         "-halt-on-error",
         job_arg.as_str(),
         entry_arg.as_str(),
     ];
-    run(temp.path(), &engine, &args)?;
-    let aux = fs::read_to_string(temp.path().join(format!("{job}.aux"))).unwrap_or_default();
-    if temp.path().join(format!("{job}.bcf")).exists() {
-        run(temp.path(), "biber", &[&job])?;
-    } else if aux.contains("\\bibdata") {
-        run(temp.path(), "bibtex", &[&job])?;
-    }
-    run(temp.path(), &engine, &args)?;
-    let log = run(temp.path(), &engine, &args)?;
+    let log = if executable_available("latexmk") {
+        let mode = match engine.as_str() {
+            "xelatex" => "-xelatex",
+            "lualatex" => "-lualatex",
+            _ => "-pdf",
+        };
+        let latexmk_args = [
+            mode,
+            "-interaction=nonstopmode",
+            "-halt-on-error",
+            "-no-shell-escape",
+            job_arg.as_str(),
+            entry_arg.as_str(),
+        ];
+        run(temp.path(), "latexmk", &latexmk_args)?
+    } else {
+        run(temp.path(), &engine, &engine_args)?;
+        let aux = fs::read_to_string(temp.path().join(format!("{job}.aux"))).unwrap_or_default();
+        if temp.path().join(format!("{job}.bcf")).exists() {
+            run(temp.path(), "biber", &[&job])?;
+        } else if aux.contains("\\bibdata") {
+            run(temp.path(), "bibtex", &[&job])?;
+        }
+        run(temp.path(), &engine, &engine_args)?;
+        run(temp.path(), &engine, &engine_args)?
+    };
     let bytes = fs::read(temp.path().join(format!("{job}.pdf"))).map_err(|e| e.to_string())?;
     Ok(CompileResult {
         ok: true,
@@ -257,7 +279,7 @@ mod tests {
     #[test]
     #[ignore = "requires installed XeLaTeX and BibTeX"]
     fn compiles_chinese_multifile_project_with_bibliography() {
-        let source = "\\documentclass{ctexart}\n\\begin{document}\n\\input{sections/intro}\n\\bibliographystyle{plain}\n\\bibliography{references}\n\\end{document}";
+        let source = "\\documentclass{ctexart}\n\\begin{document}\n\\input{sections/intro}\n\\newpage 第二页。\\newpage 第三页。\n\\bibliographystyle{plain}\n\\bibliography{references}\n\\end{document}";
         let mut files = BTreeMap::new();
         files.insert(
             "sections/intro.tex".into(),

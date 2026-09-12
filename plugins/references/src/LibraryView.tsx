@@ -208,7 +208,7 @@ export function LibraryView(props: {
                 <button className="btn sm" style={{ alignSelf: 'flex-start', marginBottom: 8 }} onClick={() => setReaderOpen(false)}>
                   ← 返回详情
                 </button>
-                <DocumentReader key={selected.blob_ref} ctx={ctx} blobRef={selected.blob_ref} fileName={selected.file_name} />
+                <DocumentReader key={selected.blob_ref} ctx={ctx} blobRef={selected.blob_ref} fileName={selected.file_name} referenceId={selected.id} />
               </div>
             ) : (
               <>

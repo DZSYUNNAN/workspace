@@ -1,8 +1,8 @@
-# ModuDesk 0.4.0 使用与迁移
+# ModuDesk 0.5.0 使用与迁移
 
 ## 启动
 
-Windows：运行 `ModuDesk_0.4.0_x64-setup.exe` 安装。也可直接运行构建目录的 `modudesk.exe`。
+Windows：运行 `ModuDesk_0.5.0_x64-setup.exe` 安装。也可直接运行构建目录的 `modudesk.exe`。
 Web：在仓库根目录执行 `npm ci`、`npm run build`、`npm start`，打开 `http://localhost:8080`。
 启动器优先使用 `apps/web/dist`。端口占用时会停止并提示，不会自动换端口。
 
@@ -23,6 +23,12 @@ Web：在仓库根目录执行 `npm ci`、`npm run build`、`npm start`，打开
 状态栏“已保存到本机”表示当前数据库快照已完成持久化。“保存失败”时请点击重试，并保留当前窗口。正常关闭有保存保护；断电、强制结束进程发生在写入完成之前，仍可能丢失尚未确认的输入。
 
 ## 科研工作流程
+
+### 0.5.0 连续 PDF 阅读与 LaTeX 预览
+
+- 文献 PDF 和 LaTeX 编译结果均支持整篇连续滚动，页码会随阅读位置更新。
+- 文献 PDF 可直接拖选文字创建本地高亮，并从批注栏跳转或删除。
+- 桌面端优先使用 `latexmk` 自动完成交叉引用、BibTeX/Biber 和所需编译轮次；未安装时仍使用原兼容流程。
 
 ### 0.4.0 校园邮箱与账户管理
 
