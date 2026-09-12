@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PluginContext } from '@mpw/kernel';
-import { ContinuousPdf, Icon, type PdfHighlight, type PdfScrollRequest, type PdfTextSelection } from '@mpw/ui';
+import { ContinuousPdf, Icon, ResizeHandle, type PdfHighlight, type PdfScrollRequest, type PdfTextSelection } from '@mpw/ui';
+import { LAYOUT_CONTROL_APPLY } from '@mpw/shared';
 import { addAnnotation, deleteAnnotation, listAnnotations, type AnnotationRecord } from './store';
 
 function annotationHighlights(annotations: AnnotationRecord[]): PdfHighlight[] {
@@ -106,6 +107,7 @@ export function PdfReader(props: { ctx: PluginContext; blobRef: string; fileName
         {bytes ? <ContinuousPdf bytes={bytes} scale={scale} highlights={annotationHighlights(annos)} scrollRequest={scrollRequest} onDocumentLoad={setDoc} onPageChange={setPage} onTextSelect={props.referenceId ? addHighlight : undefined} ariaLabel={`${props.fileName} 连续阅读区`} /> : <div className="empty-state">正在读取 PDF…</div>}
       </div>
     </div>
+    {showAnno && <ResizeHandle direction={-1} onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'annotationPanelWidth', delta })} title="拖动调整 PDF 批注栏宽度" />}
     {showAnno && <div className="anno-panel">
       <div className="widget-toolbar" style={{ padding: 8 }}><b style={{ fontSize: 12 }}>批注</b><span style={{ flex: 1 }} /><button className="icon-btn" title="收起批注面板" onClick={() => setShowAnno(false)}><Icon name="x" size={13} /></button></div>
       <div className="list">

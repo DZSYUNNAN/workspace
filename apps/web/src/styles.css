@@ -161,6 +161,14 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .float-win .pane-header { border-radius: var(--radius) var(--radius) 0 0; }
 .float-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+.float-resize-edge { position: absolute; z-index: 3; }
+.float-resize-edge.left, .float-resize-edge.right { top: 8px; bottom: 8px; width: 7px; cursor: ew-resize; }
+.float-resize-edge.left { left: -3px; }
+.float-resize-edge.right { right: -3px; }
+.float-resize-edge.top, .float-resize-edge.bottom { left: 8px; right: 8px; height: 7px; cursor: ns-resize; }
+.float-resize-edge.top { top: -3px; }
+.float-resize-edge.bottom { bottom: -3px; }
+.float-resize-edge:hover { background: color-mix(in srgb, var(--accent) 55%, transparent); }
 
 .drop-overlay { position: absolute; z-index: 40; border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1.5px solid var(--accent); pointer-events: none; }
 .drag-ghost {
@@ -527,3 +535,11 @@ input, select, textarea { font: inherit; color: inherit; }
   .local-document-split.has-preview { flex-direction: column; }
   .local-document-split.has-preview .local-document-source, .local-document-preview { flex: 0 0 auto; width: 100%; }
 }
+body.is-resizing { cursor: col-resize !important; user-select: none !important; }
+.pane-resize-handle { flex: none; z-index: 12; touch-action: none; background: transparent; position: relative; }
+.pane-resize-handle::after { content: ''; position: absolute; border-radius: 3px; background: transparent; transition: background .12s; }
+.pane-resize-handle.axis-x { width: 7px; margin: 0 -3.5px; cursor: col-resize; }
+.pane-resize-handle.axis-x::after { left: 2px; top: 0; bottom: 0; width: 3px; }
+.pane-resize-handle.axis-y { height: 7px; margin: -3.5px 0; cursor: row-resize; }
+.pane-resize-handle.axis-y::after { top: 2px; left: 0; right: 0; height: 3px; }
+.pane-resize-handle:hover::after, .pane-resize-handle:active::after { background: var(--accent); }

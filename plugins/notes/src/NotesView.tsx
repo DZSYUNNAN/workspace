@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
-import { Icon } from '@mpw/ui';
+import { Icon, ResizeHandle } from '@mpw/ui';
+import { LAYOUT_CONTROL_APPLY } from '@mpw/shared';
 import { backlinks, createNote, parseTags, softDeleteNote, type NoteRecord } from './store';
 import { renderMarkdown } from './markdown';
 
@@ -106,7 +107,7 @@ export function NotesView(props: {
 
   return (
     <div className="notes-split">
-      <div className="notes-side notes-list-side" style={compact ? { width: 150 } : undefined}>
+      <div className="notes-side notes-list-side">
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="筛选…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           <button
@@ -132,6 +133,7 @@ export function NotesView(props: {
           {filtered.length === 0 && <div className="empty-state">暂无笔记</div>}
         </div>
       </div>
+      <ResizeHandle onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'notesListWidth', delta })} title="拖动调整笔记列表宽度" />
 
       <div className="note-editor-wrap" style={{ position: 'relative' }}>
         {active ? (
@@ -185,6 +187,7 @@ export function NotesView(props: {
                   placeholder="Markdown…用 [[笔记名]] 链接笔记,$x^2$ 插入公式。"
                 />
               )}
+              {mode === 'split' && <ResizeHandle onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'notesEditorPercent', delta: delta / Math.max(1, window.innerWidth) * 100 })} title="拖动调整笔记编辑与预览宽度" />}
               {mode !== 'edit' && (
                 <div
                   className="md"

@@ -19,7 +19,7 @@ interface QuickAction {
 
 /** 全局 AI 侧栏 — 问候语 + 快捷指令 + 上下文许可芯片(ModuDesk 设计稿)。 */
 export function AiPanel(): React.ReactElement {
-  const { kernel, aiPanelOpen, refresh } = useApp();
+  const { kernel, aiPanelOpen, refresh, navigate } = useApp();
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -135,6 +135,9 @@ export function AiPanel(): React.ReactElement {
         AI 助手
         <span className="badge gray" style={{ marginLeft: 4 }}>{providerLabel}</span>
         <span style={{ flex: 1 }} />
+        <button className="icon-btn" title="配置 AI 服务" onClick={() => navigate({ type: 'settings' })}>
+          <Icon name="settings" size={14} />
+        </button>
         <button className="icon-btn" title="上下文来源" onClick={() => setShowCtx((v) => !v)}>
           <Icon name="link" size={14} />
         </button>

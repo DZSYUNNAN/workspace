@@ -79,6 +79,7 @@ describe('application boot (full shell over real adapters)', () => {
     const text = container.textContent ?? '';
     expect(container.querySelector('.shell')).toBeTruthy();
     expect(container.querySelector('.sidebar')).toBeTruthy();
+    expect(container.querySelectorAll('.shell-main > .pane-resize-handle').length).toBeGreaterThanOrEqual(2);
     expect(container.querySelector('.canvas')).toBeTruthy();
     expect(text).toContain('首页');
     expect(text).toContain('AI 助手');

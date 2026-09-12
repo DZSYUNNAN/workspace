@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
-import { Icon } from '@mpw/ui';
+import { Icon, ResizeHandle } from '@mpw/ui';
+import { LAYOUT_CONTROL_APPLY } from '@mpw/shared';
 import {
   FOLDERS,
   getMessage,
@@ -132,7 +133,7 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
   return (
     <div className="mail-layout" style={{ position: 'relative' }}>
       {/* 文件夹 */}
-      <div className="mail-folders" style={props.compact ? { width: 128 } : undefined}>
+      <div className="mail-folders">
         <select
           className="input"
           style={{ margin: '4px 4px 8px', fontSize: 11.5, width: 'calc(100% - 8px)' }}
@@ -165,6 +166,7 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
         <button className="btn sm" disabled={!selected || busy || !!compose} style={{ margin: '0 6px 6px' }} onClick={() => setEditOpen(true)}>账户设置</button>
         <button className="btn sm danger" disabled={!selected || busy || !!compose} style={{ margin: '0 6px 6px' }} onClick={() => setDeleteOpen(true)}>删除账户</button>
       </div>
+      <ResizeHandle onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'mailFoldersWidth', delta })} title="拖动调整邮件文件夹宽度" />
 
       {/* 列表 */}
       <div className="mail-list">
@@ -213,6 +215,7 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
           {filtered.length === 0 && <div className="empty-state">{FOLDER_LABEL[folder] ?? folder}暂无邮件</div>}
         </div>
       </div>
+      <ResizeHandle direction={-1} onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'mailReaderPercent', delta: delta / Math.max(1, window.innerWidth) * 100 })} title="拖动调整邮件正文宽度" />
 
       {/* 阅读区 */}
       <div className="mail-reader">

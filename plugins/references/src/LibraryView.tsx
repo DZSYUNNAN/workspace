@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
-import { Icon } from '@mpw/ui';
-import { formatAuthors, DOCUMENT_ACCEPT, documentMime, extension } from '@mpw/shared';
+import { Icon, ResizeHandle } from '@mpw/ui';
+import { formatAuthors, DOCUMENT_ACCEPT, documentMime, extension, LAYOUT_CONTROL_APPLY } from '@mpw/shared';
 import {
   addToCollection,
   createCollection,
@@ -146,7 +146,7 @@ export function LibraryView(props: {
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       {/* library list */}
-      <div className="notes-side references-side" style={props.compact ? { width: 170 } : undefined}>
+      <div className="notes-side references-side">
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="搜索文献库…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           <button className="btn sm primary" title="导入文献" onClick={() => setImportOpen(true)}>
@@ -198,6 +198,7 @@ export function LibraryView(props: {
           {filtered.length === 0 && <div className="empty-state">文献库还是空的<br /><span style={{ fontSize: 11 }}>上传 PDF / Word / Markdown，或导入 BibTeX / RIS / DOI</span></div>}
         </div>
       </div>
+      <ResizeHandle onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'referencesListWidth', delta })} title="拖动调整文献列表宽度" />
 
       {/* detail */}
       <div className="ref-detail">

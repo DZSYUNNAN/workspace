@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod ai_http;
 mod local_files;
 mod mail;
 mod storage;
@@ -15,6 +16,7 @@ fn main() {
         }))
         .setup(storage::setup)
         .invoke_handler(tauri::generate_handler![
+            ai_http::ai_http_request,
             mail::mail_test,
             mail::mail_fetch,
             mail::mail_send,

@@ -53,6 +53,8 @@ describe('layout size controls', () => {
   it('stores module pane sizes and sidebar visibility independently', () => {
     const resized = applyLayoutSizeAction(layout, { kind: 'modulePane', key: 'localTexPreviewPercent', size: 67 });
     expect(resized.moduleSizes?.localTexPreviewPercent).toBe(67);
+    const dragged = applyLayoutSizeAction(resized, { kind: 'modulePaneDelta', key: 'localTexPreviewPercent', delta: -5 });
+    expect(dragged.moduleSizes?.localTexPreviewPercent).toBe(62);
     const hidden = applyLayoutSizeAction(resized, { kind: 'sidebarVisibility', routeKey: 'mpw.email/main', visible: false, routeKeys: ['mpw.email/main', 'mpw.notes/main'] });
     expect(hidden.sidebar?.visibleRouteKeys).toEqual(['mpw.notes/main']);
     const shown = applyLayoutSizeAction(hidden, { kind: 'showAllSidebarRoutes' });

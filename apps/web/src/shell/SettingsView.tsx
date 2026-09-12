@@ -39,7 +39,7 @@ export function SettingsView(): React.ReactElement {
         ))}
       </div>
 
-      <h2>AI provider</h2>
+      <h2>AI 服务</h2>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p>先保存接口和密钥，再测试连接。测试仅发送一句测试文本，不读取工作台内容。</p>
         <button className="btn" disabled={testing} onClick={() => {
@@ -57,13 +57,13 @@ export function SettingsView(): React.ReactElement {
           ))}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-2)' }}>
-          Active: <b>{providers.find((p) => p.id === currentProvider)?.label}</b> · default model{' '}
+          当前服务：<b>{providers.find((p) => p.id === currentProvider)?.label}</b> · 默认模型{' '}
           <code>{providers.find((p) => p.id === currentProvider)?.defaultModel}</code>
           {providers.find((p) => p.id === currentProvider)?.requiresKey === false && ' · no key required'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input className="input" style={{ width: 240 }} placeholder="Base URL (optional)" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-          <input className="input" style={{ width: 200 }} placeholder="Model override" value={model} onChange={(e) => setModel(e.target.value)} />
+          <input className="input" style={{ width: 280 }} placeholder="接口根地址，例如 https://api.openai.com/v1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+          <input className="input" style={{ width: 220 }} placeholder="模型名称（可选）" value={model} onChange={(e) => setModel(e.target.value)} />
           <button
             className="btn"
             onClick={() => {
@@ -73,11 +73,11 @@ export function SettingsView(): React.ReactElement {
               refresh();
             }}
           >
-            Save endpoint
+            保存接口
           </button>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-2)' }}>
-          API keys are stored in the OS keychain (or encrypted origin storage on web) — never in SQLite.
+          桌面版通过原生网络连接 AI 服务，避免 WebView 跨域限制。API 密钥保存在系统凭据管理器中，不写入工作区数据库。
         </div>
         {providers
           .filter((p) => p.requiresKey)

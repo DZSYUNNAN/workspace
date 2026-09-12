@@ -6,7 +6,7 @@ export default definePlugin({
   manifest: {
     id: 'mpw.layout-controls',
     name: '窗口大小控制器',
-    version: '0.1.0',
+    version: '0.2.0',
     author: 'ModuDesk',
     description: '集中调整当前工作区内停靠模块、分栏和浮动窗口的尺寸。',
     icon: 'panelRight',

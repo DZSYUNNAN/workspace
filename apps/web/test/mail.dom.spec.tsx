@@ -20,6 +20,7 @@ describe('email account UI', () => {
     const { db, ctx, el, root, click } = await setup(); const accounts = await listAccounts(ctx);
     await removeAccount(ctx, accounts[1].id);
     await act(async () => root.render(<MailView ctx={ctx} />));
+    expect(el.querySelectorAll('.pane-resize-handle')).toHaveLength(2);
     await click('删除账户'); expect(el.textContent).toContain('服务器上的邮箱和邮件不会删除');
     await click('取消'); expect(await listAccounts(ctx)).toHaveLength(1);
     await click('删除账户'); await click('确认删除本机账户');

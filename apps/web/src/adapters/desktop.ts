@@ -32,6 +32,16 @@ export async function openDesktopData(): Promise<WorkspaceData> {
 }
 export function detectDesktopShell(kernel: Kernel): void {
   if (!isTauri()) return;
+  kernel.ai.setRequestTransport(async (url, init) => {
+    const headers = Object.fromEntries(new Headers(init.headers).entries());
+    const response = await invoke<{ status: number; body: string }>('ai_http_request', { request: { url, method: init.method ?? 'POST', headers, body: typeof init.body === 'string' ? init.body : '' } });
+    if (response.status < 200 || response.status >= 300) {
+      let detail = response.body.slice(0, 400);
+      try { detail = (JSON.parse(response.body) as { error?: { message?: string }; message?: string }).error?.message ?? (JSON.parse(response.body) as { message?: string }).message ?? detail; } catch { /* keep response text */ }
+      throw new Error(`AI 服务返回 HTTP ${response.status}：${detail}`);
+    }
+    try { return JSON.parse(response.body) as unknown; } catch { throw new Error('AI 服务返回的不是有效 JSON'); }
+  });
   kernel.latex.register({
     engine: 'xelatex', available: true, via: 'native',
     async compile(req) {

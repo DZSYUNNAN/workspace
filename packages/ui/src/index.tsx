@@ -3,6 +3,31 @@ import React from 'react';
 export { ContinuousPdf } from './ContinuousPdf';
 export type { PdfHighlight, PdfRect, PdfScrollRequest, PdfTextSelection } from './ContinuousPdf';
 
+export function ResizeHandle({ axis = 'x', direction = 1, onDelta, title = '拖动调整大小' }: { axis?: 'x' | 'y'; direction?: 1 | -1; onDelta(delta: number): void; title?: string }): React.ReactElement {
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    let previous = axis === 'x' ? event.clientX : event.clientY;
+    document.body.classList.add('is-resizing');
+    const move = (next: PointerEvent): void => {
+      const current = axis === 'x' ? next.clientX : next.clientY;
+      const delta = (current - previous) * direction;
+      previous = current;
+      if (delta) onDelta(delta);
+    };
+    const finish = (): void => {
+      document.body.classList.remove('is-resizing');
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+  };
+  return <div className={`pane-resize-handle axis-${axis}`} role="separator" aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'} title={title} onPointerDown={onPointerDown} />;
+}
+
 /** Minimal professional stroke icon set (24×24), shared by shell and plugins. */
 const PATHS: Record<string, React.ReactNode> = {
   home: <><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M9.5 21v-6h5v6" /></>,

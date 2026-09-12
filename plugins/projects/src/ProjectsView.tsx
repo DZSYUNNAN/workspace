@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
-import { Icon } from '@mpw/ui';
-import { parseResourceUri, resourceUri } from '@mpw/shared';
+import { Icon, ResizeHandle } from '@mpw/ui';
+import { LAYOUT_CONTROL_APPLY, parseResourceUri, resourceUri } from '@mpw/shared';
 import { addLink, createProject, deleteProject, listLinks, listProjects, removeLink, type ProjectLinkRecord, type ProjectRecord } from './store';
 
 
@@ -98,6 +98,7 @@ export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement 
           {projects.length === 0 && <div className="empty-state">暂无项目<br /><span style={{ fontSize: 11 }}>项目把文献、笔记、文档、任务组织在一起(引用而非复制)</span></div>}
         </div>
       </div>
+      <ResizeHandle onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'projectsListWidth', delta })} title="拖动调整项目列表宽度" />
       <div className="ref-detail">
         {active ? (
           <>

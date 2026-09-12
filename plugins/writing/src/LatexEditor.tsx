@@ -6,9 +6,10 @@ import { StreamLanguage } from '@codemirror/language';
 import { stexMath } from '@codemirror/legacy-modes/mode/stex';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { renderLatex } from './latex';
+import { ResizeHandle } from '@mpw/ui';
 
 /** Mode B editor: CodeMirror 6 (stex) left · live preview right · error panel. */
-export function LatexEditor(props: { value: string; onChange: (v: string) => void }): React.ReactElement {
+export function LatexEditor(props: { value: string; onChange: (v: string) => void; onResize?: (deltaPercent: number) => void }): React.ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const syncing = useRef(false);
@@ -70,6 +71,7 @@ export function LatexEditor(props: { value: string; onChange: (v: string) => voi
   return (
     <div className="latex-split">
       <div className="latex-src" ref={hostRef} />
+      <ResizeHandle direction={-1} onDelta={(delta) => props.onResize?.(delta / Math.max(1, window.innerWidth) * 100)} title="拖动调整 LaTeX PDF 预览宽度" />
       <div className="latex-prev">
         <div className="latex-page" dangerouslySetInnerHTML={{ __html: rendered.html }} />
       </div>

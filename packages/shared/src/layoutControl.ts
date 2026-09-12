@@ -30,6 +30,7 @@ export type LayoutSizeAction =
   | { kind: 'split'; area: DockArea; path: ('a' | 'b')[]; ratio: number }
   | { kind: 'float'; widgetId: string; width: number; height: number }
   | { kind: 'modulePane'; key: ModuleSizeKey; size: number }
+  | { kind: 'modulePaneDelta'; key: ModuleSizeKey; delta: number }
   | { kind: 'sidebarVisibility'; routeKey: string; visible: boolean; routeKeys: string[] }
   | { kind: 'showAllSidebarRoutes' }
   | { kind: 'reset' };
@@ -42,6 +43,7 @@ export function isLayoutSizeAction(value: unknown): value is LayoutSizeAction {
   if (action.kind === 'float') return typeof action.widgetId === 'string' && typeof action.width === 'number' && typeof action.height === 'number';
   if (action.kind === 'split') return ['left', 'right', 'top', 'bottom', 'center'].includes(String(action.area)) && Array.isArray(action.path) && action.path.every((step) => step === 'a' || step === 'b') && typeof action.ratio === 'number';
   if (action.kind === 'modulePane') return typeof action.key === 'string' && action.key in MODULE_SIZE_DEFAULTS && typeof action.size === 'number';
+  if (action.kind === 'modulePaneDelta') return typeof action.key === 'string' && action.key in MODULE_SIZE_DEFAULTS && typeof action.delta === 'number';
   if (action.kind === 'sidebarVisibility') return typeof action.routeKey === 'string' && typeof action.visible === 'boolean' && Array.isArray(action.routeKeys) && action.routeKeys.every((key) => typeof key === 'string');
   return false;
 }
@@ -63,6 +65,12 @@ function resetSplits(tree: PaneTree | null): PaneTree | null {
 }
 
 export function applyLayoutSizeAction(state: LayoutState, action: LayoutSizeAction): LayoutState {
+  if (action.kind === 'modulePaneDelta') {
+    const current = action.key === 'sidebarWidth'
+      ? state.sidebar?.width ?? MODULE_SIZE_DEFAULTS.sidebarWidth
+      : state.moduleSizes?.[action.key] ?? MODULE_SIZE_DEFAULTS[action.key];
+    return applyLayoutSizeAction(state, { kind: 'modulePane', key: action.key, size: current + action.delta });
+  }
   if (action.kind === 'modulePane') {
     const percent = action.key.endsWith('Percent');
     const size = clamp(action.size, percent ? 20 : 80, percent ? 80 : 900);

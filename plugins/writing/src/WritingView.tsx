@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
-import { Icon } from '@mpw/ui';
-import { escapeHtml, type LocalDocuments, type LocalDocumentSession } from '@mpw/shared';
+import { Icon, ResizeHandle } from '@mpw/ui';
+import { escapeHtml, LAYOUT_CONTROL_APPLY, type LocalDocuments, type LocalDocumentSession } from '@mpw/shared';
 import { LocalDocumentEditor } from './LocalDocumentEditor';
 import {
   addFile,
@@ -160,7 +160,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
 
   return (
     <div className="notes-split">
-      <div className="notes-side writing-side" style={props.compact ? { width: 150 } : undefined}>
+      <div className="notes-side writing-side">
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-3)', flex: 1 }}>{docs.length} 篇文档</span>
           <button
@@ -208,6 +208,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
           )}
         </div>
       </div>
+      <ResizeHandle onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'writingListWidth', delta })} title="拖动调整写作文档列表宽度" />
 
       <div className="note-editor-wrap">
         {activeLocal ? <LocalDocumentEditor key={activeLocal.file.id} ctx={ctx} session={activeLocal} onDetach={async () => { await local?.detach(activeLocal); setActiveLocal(null); }} /> : active ? (
@@ -310,7 +311,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
                     <Icon name="plus" size={12} />
                   </button>
                 </div>
-                <LatexEditor key={`${active.id}/${activeFileId}`} value={draft.content} onChange={(v) => updateDraft((d) => ({ ...d, content: v }))} />
+                <LatexEditor key={`${active.id}/${activeFileId}`} value={draft.content} onChange={(v) => updateDraft((d) => ({ ...d, content: v }))} onResize={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'latexPreviewPercent', delta })} />
                 {compileMsg && <div className="err-panel">{compileMsg}</div>}
               </div>
             )}

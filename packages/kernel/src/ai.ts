@@ -13,7 +13,10 @@ export interface AiCompleteParams {
   context?: string;
   temperature?: number;
   maxTokens?: number;
+  requestJson?: AiRequestTransport;
 }
+
+export type AiRequestTransport = (url: string, init: RequestInit) => Promise<unknown>;
 
 export interface AiProviderAdapter {
   id: string;
@@ -100,7 +103,7 @@ export const openAiProvider: AiProviderAdapter = {
   defaultBaseUrl: 'https://api.openai.com/v1',
   requiresKey: true,
   async complete(p) {
-    const data = (await fetchJson(`${p.baseUrl ?? this.defaultBaseUrl}/chat/completions`, {
+    const data = (await (p.requestJson ?? fetchJson)(`${p.baseUrl ?? this.defaultBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${p.apiKey ?? ''}` },
       body: JSON.stringify({
@@ -138,7 +141,7 @@ export const anthropicProvider: AiProviderAdapter = {
   defaultBaseUrl: 'https://api.anthropic.com',
   requiresKey: true,
   async complete(p) {
-    const data = (await fetchJson(`${p.baseUrl ?? this.defaultBaseUrl}/v1/messages`, {
+    const data = (await (p.requestJson ?? fetchJson)(`${p.baseUrl ?? this.defaultBaseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -171,7 +174,7 @@ export const googleProvider: AiProviderAdapter = {
   requiresKey: true,
   async complete(p) {
     const model = p.model ?? this.defaultModel;
-    const data = (await fetchJson(`${p.baseUrl ?? this.defaultBaseUrl}/models/${model}:generateContent?key=${p.apiKey ?? ''}`, {
+    const data = (await (p.requestJson ?? fetchJson)(`${p.baseUrl ?? this.defaultBaseUrl}/models/${model}:generateContent?key=${p.apiKey ?? ''}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -195,7 +198,7 @@ export const ollamaProvider: AiProviderAdapter = {
   defaultBaseUrl: 'http://localhost:11434',
   requiresKey: false,
   async complete(p) {
-    const data = (await fetchJson(`${p.baseUrl ?? this.defaultBaseUrl}/api/generate`, {
+    const data = (await (p.requestJson ?? fetchJson)(`${p.baseUrl ?? this.defaultBaseUrl}/api/generate`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -222,6 +225,7 @@ export const BUILTIN_AI_PROVIDERS: AiProviderAdapter[] = [
 
 export class AiGateway {
   private providers = new Map<string, AiProviderAdapter>();
+  private requestTransport?: AiRequestTransport;
 
   constructor(
     private resolveConfig: () => { providerId: string; baseUrl?: string; model?: string },
@@ -232,6 +236,10 @@ export class AiGateway {
 
   registerProvider(adapter: AiProviderAdapter): void {
     this.providers.set(adapter.id, adapter);
+  }
+
+  setRequestTransport(transport: AiRequestTransport): void {
+    this.requestTransport = transport;
   }
 
   listProviders(): { id: string; label: string; requiresKey: boolean; defaultModel: string }[] {
@@ -246,12 +254,12 @@ export class AiGateway {
   async run(prompt: string, opts?: AiRunOptions): Promise<AiResult> {
     const cfg = this.resolveConfig();
     const provider = this.providers.get(cfg.providerId);
-    if (!provider) throw new AiConfigError('no AI provider available');
+    if (!provider) throw new AiConfigError('没有可用的 AI 服务，请在“设置 → AI 服务”中重新选择');
     if (provider.id === 'openai-compatible' && !cfg.baseUrl) throw new AiConfigError('请填写兼容服务的 Base URL');
     const apiKey = provider.requiresKey ? await this.resolveKey(provider.id) : null;
     if (provider.requiresKey && !apiKey) {
       throw new AiConfigError(
-        `AI provider "${provider.label}" needs an API key — add it in Settings → AI.`
+        `“${provider.label}”尚未配置 API 密钥，请前往“设置 → AI 服务”保存密钥并测试连接。`
       );
     }
     const contextText = (opts?.context ?? []).map((c) => c.content).join('\n\n---\n\n') || undefined;
@@ -264,6 +272,7 @@ export class AiGateway {
       context: contextText,
       temperature: opts?.temperature,
       maxTokens: opts?.maxTokens,
+      requestJson: this.requestTransport,
     });
     if (!result.text.trim()) throw new AiConfigError('服务返回了空内容，请检查模型名称和接口地址');
     return result;

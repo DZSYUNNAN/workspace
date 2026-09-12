@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { documentMime, type LocalDocumentSession, type TexEngine } from '@mpw/shared';
 import type { PluginContext } from '@mpw/kernel';
 import { PdfPreview } from './PdfPreview';
+import { ResizeHandle } from '@mpw/ui';
+import { LAYOUT_CONTROL_APPLY } from '@mpw/shared';
 import { downloadBlob } from './docx';
 
 export function LocalDocumentEditor({ session, onDetach, ctx }: { session: LocalDocumentSession; onDetach(): Promise<void>; ctx?: PluginContext }): React.ReactElement {
@@ -72,6 +74,7 @@ export function LocalDocumentEditor({ session, onDetach, ctx }: { session: Local
           style={{ width: '100%', resize: 'vertical', lineHeight: 1.8, fontFamily: session.codec.kind === 'text' ? 'Consolas, monospace' : 'inherit' }} />
       </div>)}
     </div>
+    {pdf && <ResizeHandle direction={-1} onDelta={(delta) => ctx?.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'localTexPreviewPercent', delta: delta / Math.max(1, window.innerWidth) * 100 })} title="拖动调整编译 PDF 宽度" />}
     {pdf && <div className="local-document-preview"><PdfPreview bytes={pdf} /></div>}
     </div>
   </div>;

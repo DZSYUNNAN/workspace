@@ -46,4 +46,15 @@ describe('AI gateway & demo provider', () => {
     await s.delete('ai.key.openai');
     await expect(s.get('ai.key.openai')).resolves.toBeNull();
   });
+
+  it('uses an injected desktop transport for network providers', async () => {
+    const ai = gateway('openai', 'secret');
+    let requested = '';
+    ai.setRequestTransport(async (url) => {
+      requested = url;
+      return { choices: [{ message: { content: '桌面连接正常' } }] };
+    });
+    await expect(ai.run('hello')).resolves.toMatchObject({ text: '桌面连接正常', provider: 'openai' });
+    expect(requested).toBe('https://api.openai.com/v1/chat/completions');
+  });
 });

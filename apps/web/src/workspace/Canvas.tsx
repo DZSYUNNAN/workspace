@@ -374,7 +374,7 @@ export function Canvas(): React.ReactElement {
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     };
-    const onResizeDown = (e: React.PointerEvent): void => {
+    const onResizeDown = (edge: 'left' | 'right' | 'top' | 'bottom' | 'corner') => (e: React.PointerEvent): void => {
       e.preventDefault();
       e.stopPropagation();
       const startW = props.w;
@@ -382,7 +382,12 @@ export function Canvas(): React.ReactElement {
       const sx = e.clientX;
       const sy = e.clientY;
       const onMove = (ev: PointerEvent): void => {
-        setLayout((l) => resizeFloat(l, props.widgetId, startW + (ev.clientX - sx), startH + (ev.clientY - sy)));
+        const dx = ev.clientX - sx; const dy = ev.clientY - sy;
+        const nextW = Math.max(240, edge === 'left' ? startW - dx : edge === 'right' || edge === 'corner' ? startW + dx : startW);
+        const nextH = Math.max(160, edge === 'top' ? startH - dy : edge === 'bottom' || edge === 'corner' ? startH + dy : startH);
+        const nextX = edge === 'left' ? props.x + startW - nextW : props.x;
+        const nextY = edge === 'top' ? props.y + startH - nextH : props.y;
+        setLayout((l) => resizeFloat(l, props.widgetId, nextW, nextH, nextX, nextY));
       };
       const onUp = (): void => {
         window.removeEventListener('pointermove', onMove);
@@ -397,7 +402,11 @@ export function Canvas(): React.ReactElement {
         <div className="pane-body">
           <WidgetHost widgetId={props.widgetId} />
         </div>
-        <div className="float-resize" onPointerDown={onResizeDown} />
+        <div className="float-resize-edge left" onPointerDown={onResizeDown('left')} />
+        <div className="float-resize-edge right" onPointerDown={onResizeDown('right')} />
+        <div className="float-resize-edge top" onPointerDown={onResizeDown('top')} />
+        <div className="float-resize-edge bottom" onPointerDown={onResizeDown('bottom')} />
+        <div className="float-resize" onPointerDown={onResizeDown('corner')} />
       </div>
     );
   }

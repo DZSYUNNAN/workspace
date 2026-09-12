@@ -1,5 +1,6 @@
 import React from 'react';
-import { MODULE_SIZE_DEFAULTS } from '@mpw/shared';
+import { MODULE_SIZE_DEFAULTS, applyLayoutSizeAction, type ModuleSizeKey } from '@mpw/shared';
+import { ResizeHandle } from '@mpw/ui';
 import { useApp } from './state';
 import { useTheme } from './theme';
 import { TopBar } from './shell/TopBar';
@@ -15,7 +16,8 @@ import { CloseDialog } from './shell/CloseDialog';
 
 export function App(): React.ReactElement {
   useTheme();
-  const { kernel, route, layout } = useApp();
+  const { kernel, route, layout, setLayout, aiPanelOpen } = useApp();
+  const resize = (key: ModuleSizeKey, delta: number): void => setLayout((current) => applyLayoutSizeAction(current, { kind: 'modulePaneDelta', key, delta }));
   const size = { ...MODULE_SIZE_DEFAULTS, ...layout.moduleSizes, sidebarWidth: layout.sidebar?.width ?? MODULE_SIZE_DEFAULTS.sidebarWidth };
   const shellStyle = {
     '--mpw-sidebar-width': `${size.sidebarWidth}px`, '--mpw-ai-panel-width': `${size.aiPanelWidth}px`,
@@ -54,7 +56,9 @@ export function App(): React.ReactElement {
       <TopBar />
       <div className="shell-main">
         <Sidebar />
+        <ResizeHandle onDelta={(delta) => resize('sidebarWidth', delta)} title="拖动调整左侧导航宽度" />
         <div className="shell-center">{center}</div>
+        {aiPanelOpen && <ResizeHandle direction={-1} onDelta={(delta) => resize('aiPanelWidth', delta)} title="拖动调整 AI 助手宽度" />}
         <AiPanel />
       </div>
       <StatusBar />
