@@ -218,11 +218,11 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
       <ResizeHandle direction={-1} onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'mailReaderPercent', delta: delta / Math.max(1, window.innerWidth) * 100 })} title="拖动调整邮件正文宽度" />
 
       {/* 阅读区 */}
-      <div className="mail-reader">
+      <div className="mail-reader" style={{ flexBasis: 'var(--mpw-mail-reader-percent, 50%)', width: 'var(--mpw-mail-reader-percent, 50%)', maxWidth: 'var(--mpw-mail-reader-percent, 50%)', minWidth: 0, overflowX: 'hidden', contain: 'inline-size' }}>
         {openMsg ? (
           <>
             <h2>{openMsg.subject || '(无主题)'}</h2>
-            <div className="ref-meta" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="ref-meta mail-reader-meta" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="mail-ava" style={{ background: avaColor(openMsg.from_addr) }}>{initial(openMsg.from_name)}</span>
               <b>{openMsg.from_name}</b> &lt;{openMsg.from_addr}&gt; · {new Date(openMsg.date).toLocaleString('zh-CN')}
             </div>
@@ -255,7 +255,7 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
                 <Icon name="trash" size={12} /> 删除
               </button>
             </div>
-            <div style={{ lineHeight: 1.8, whiteSpace: 'pre-wrap', fontSize: 13 }}>{openMsg.body_text}</div>
+            <div className="mail-reader-body" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{openMsg.body_text}</div>
             {openMsg.has_attachments === 1 && (
               <div style={{ marginTop: 16 }}>
                 <b style={{ fontSize: 12 }}>附件</b>

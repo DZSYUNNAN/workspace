@@ -5,7 +5,7 @@ import { Kernel, openMemoryDb, type PluginContext } from '@mpw/kernel';
 import emailPlugin from '@mpw/plugin-email';
 import { MailView } from '../../../plugins/email/src/MailView';
 import { AccountDialog } from '../../../plugins/email/src/AccountDialog';
-import { addAccount, listAccounts, removeAccount } from '../../../plugins/email/src/store';
+import { addAccount, addMessage, listAccounts, removeAccount } from '../../../plugins/email/src/store';
 import { tencentConfig } from '../../../plugins/email/src/connection';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 async function setup() {
@@ -19,8 +19,17 @@ describe('email account UI', () => {
   it('confirms account deletion and clears the last selected account without reseeding', async () => {
     const { db, ctx, el, root, click } = await setup(); const accounts = await listAccounts(ctx);
     await removeAccount(ctx, accounts[1].id);
+    await addMessage(ctx, { accountId: accounts[0].id, folder: 'inbox', subject: '超长正文', fromName: 'Long Sender', fromAddr: `${'very-long-address'.repeat(30)}@example.edu`, toList: [], bodyText: `https://example.edu/${'unbroken'.repeat(800)}`, date: Date.now() });
     await act(async () => root.render(<MailView ctx={ctx} />));
     expect(el.querySelectorAll('.pane-resize-handle')).toHaveLength(2);
+    const firstMail = [...el.querySelectorAll<HTMLElement>('.mail-row')].find((row) => row.textContent?.includes('超长正文'));
+    expect(firstMail).toBeTruthy();
+    await act(async () => firstMail!.click());
+    const reader = el.querySelector<HTMLElement>('.mail-reader'); const body = el.querySelector<HTMLElement>('.mail-reader-body');
+    expect(reader!.style.width).toBe('var(--mpw-mail-reader-percent, 50%)');
+    expect(reader!.style.maxWidth).toBe('var(--mpw-mail-reader-percent, 50%)');
+    expect(reader!.style.overflowX).toBe('hidden');
+    expect(body!.style.overflowWrap).toBe('anywhere');
     await click('删除账户'); expect(el.textContent).toContain('服务器上的邮箱和邮件不会删除');
     await click('取消'); expect(await listAccounts(ctx)).toHaveLength(1);
     await click('删除账户'); await click('确认删除本机账户');

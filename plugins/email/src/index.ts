@@ -9,7 +9,7 @@ export default definePlugin({
   manifest: {
     id: 'mpw.email',
     name: '邮箱',
-    version: '0.3.0',
+    version: '0.3.1',
     author: 'ModuDesk',
     description: '多账户邮箱：桌面 IMAP/SMTP 加密直连、连接测试、收件缓存与文本发送，支持账户设置和删除；内置离线演示。',
     icon: 'mail',

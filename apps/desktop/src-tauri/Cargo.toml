@@ -1,6 +1,6 @@
 [package]
 name = "modudesk"
-version = "0.6.1"
+version = "0.6.2"
 description = "ModuDesk — 模块化个人工作台(Windows 桌面壳)"
 authors = ["DZSYUNNAN"]
 edition = "2021"
