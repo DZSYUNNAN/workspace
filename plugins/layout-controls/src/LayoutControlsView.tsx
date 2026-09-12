@@ -62,8 +62,10 @@ export function LayoutControlsView({ ctx }: { ctx: PluginContext }): React.React
       <p className="sub">隐藏入口不会停用或卸载插件，工作台中已经打开的窗口不受影响。</p>
       <div className="layout-route-grid">
         {snapshot.routes.filter((item) => item.key !== 'mpw.ai/main').map((item) => {
-          const visible = !(snapshot.layout.sidebar?.hiddenRouteKeys ?? []).includes(item.key);
-          return <label className="card layout-route-option" key={item.key}><span className="pc-icon"><Icon name={item.icon} size={15} /></span><span>{item.title}</span><input type="checkbox" checked={visible} onChange={(event) => apply({ kind: 'sidebarVisibility', routeKey: item.key, visible: event.target.checked })} /></label>;
+          const visible = snapshot.layout.sidebar?.visibleRouteKeys
+            ? snapshot.layout.sidebar.visibleRouteKeys.includes(item.key)
+            : !(snapshot.layout.sidebar?.hiddenRouteKeys ?? []).includes(item.key);
+          return <label className="card layout-route-option" key={item.key}><span className="pc-icon"><Icon name={item.icon} size={15} /></span><span>{item.title}</span><input type="checkbox" checked={visible} onChange={(event) => apply({ kind: 'sidebarVisibility', routeKey: item.key, visible: event.target.checked, routeKeys: snapshot.routes.filter((route) => route.key !== 'mpw.ai/main').map((route) => route.key) })} /></label>;
         })}
       </div>
       <h2 className="layout-section-title">工作台窗口</h2>

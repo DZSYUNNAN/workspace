@@ -30,7 +30,7 @@ export type LayoutSizeAction =
   | { kind: 'split'; area: DockArea; path: ('a' | 'b')[]; ratio: number }
   | { kind: 'float'; widgetId: string; width: number; height: number }
   | { kind: 'modulePane'; key: ModuleSizeKey; size: number }
-  | { kind: 'sidebarVisibility'; routeKey: string; visible: boolean }
+  | { kind: 'sidebarVisibility'; routeKey: string; visible: boolean; routeKeys: string[] }
   | { kind: 'showAllSidebarRoutes' }
   | { kind: 'reset' };
 
@@ -42,7 +42,7 @@ export function isLayoutSizeAction(value: unknown): value is LayoutSizeAction {
   if (action.kind === 'float') return typeof action.widgetId === 'string' && typeof action.width === 'number' && typeof action.height === 'number';
   if (action.kind === 'split') return ['left', 'right', 'top', 'bottom', 'center'].includes(String(action.area)) && Array.isArray(action.path) && action.path.every((step) => step === 'a' || step === 'b') && typeof action.ratio === 'number';
   if (action.kind === 'modulePane') return typeof action.key === 'string' && action.key in MODULE_SIZE_DEFAULTS && typeof action.size === 'number';
-  if (action.kind === 'sidebarVisibility') return typeof action.routeKey === 'string' && typeof action.visible === 'boolean';
+  if (action.kind === 'sidebarVisibility') return typeof action.routeKey === 'string' && typeof action.visible === 'boolean' && Array.isArray(action.routeKeys) && action.routeKeys.every((key) => typeof key === 'string');
   return false;
 }
 
@@ -70,11 +70,11 @@ export function applyLayoutSizeAction(state: LayoutState, action: LayoutSizeActi
     return { ...state, moduleSizes: { ...state.moduleSizes, [action.key]: size } };
   }
   if (action.kind === 'sidebarVisibility') {
-    const hidden = new Set(state.sidebar?.hiddenRouteKeys ?? []);
-    if (action.visible) hidden.delete(action.routeKey); else hidden.add(action.routeKey);
-    return { ...state, sidebar: { ...state.sidebar, hiddenRouteKeys: [...hidden] } };
+    const visible = new Set(state.sidebar?.visibleRouteKeys ?? action.routeKeys.filter((key) => !(state.sidebar?.hiddenRouteKeys ?? []).includes(key)));
+    if (action.visible) visible.add(action.routeKey); else visible.delete(action.routeKey);
+    return { ...state, sidebar: { ...state.sidebar, hiddenRouteKeys: undefined, visibleRouteKeys: [...visible] } };
   }
-  if (action.kind === 'showAllSidebarRoutes') return { ...state, sidebar: { ...state.sidebar, hiddenRouteKeys: [] } };
+  if (action.kind === 'showAllSidebarRoutes') return { ...state, sidebar: { ...state.sidebar, hiddenRouteKeys: [], visibleRouteKeys: undefined } };
   if (action.kind === 'area') {
     const key = action.area === 'left' ? 'leftW' : action.area === 'right' ? 'rightW' : action.area === 'top' ? 'topH' : 'bottomH';
     const vertical = action.area === 'top' || action.area === 'bottom';

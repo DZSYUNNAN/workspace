@@ -12,7 +12,8 @@ export function Sidebar(): React.ReactElement {
   const { kernel, route, navigate, layout } = useApp();
   const routes = kernel.enabledRoutes();
   const hidden = new Set(layout.sidebar?.hiddenRouteKeys ?? []);
-  const main = routes.filter((r) => r.key !== 'mpw.ai/main' && !hidden.has(r.key));
+  const visible = layout.sidebar?.visibleRouteKeys ? new Set(layout.sidebar.visibleRouteKeys) : null;
+  const main = routes.filter((r) => r.key !== 'mpw.ai/main' && (visible ? visible.has(r.key) : !hidden.has(r.key)));
   return (
     <div className="sidebar">
       <button

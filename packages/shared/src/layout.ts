@@ -37,7 +37,7 @@ export interface LayoutState {
   /** User-adjustable widths for panes inside plugin views. Unknown keys are ignored. */
   moduleSizes?: Record<string, number>;
   /** Sidebar presentation is independent from plugin installation/enabled state. */
-  sidebar?: { width?: number; hiddenRouteKeys?: string[] };
+  sidebar?: { width?: number; hiddenRouteKeys?: string[]; visibleRouteKeys?: string[] };
 }
 
 export function leaf(widgetId: string): PaneTree {
