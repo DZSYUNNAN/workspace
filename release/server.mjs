@@ -106,7 +106,7 @@ function startServer(port) {
   server.listen(port, host, () => {
     const url = `http://localhost:${port}`;
     console.log('\n  ┌─────────────────────────────────────────┐');
-    console.log('  │   ModuDesk · 模块化个人工作台  v0.5.0   │');
+    console.log('  │   ModuDesk · 模块化个人工作台  v0.6.0   │');
     console.log('  └─────────────────────────────────────────┘');
     console.log(`\n  ➜  ${url}(浏览器应已自动打开,若无请手动访问)`);
     console.log(`     页面目录: ${root}`);

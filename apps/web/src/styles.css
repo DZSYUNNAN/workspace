@@ -231,6 +231,24 @@ input, select, textarea { font: inherit; color: inherit; }
 .toggle::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left 0.15s; }
 .toggle.on::after { left: 16px; }
 
+/* window size controller */
+.layout-control-view { max-width: 980px; }
+.layout-control-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 14px 20px; margin-bottom: 16px; }
+.layout-control-heading .sub { margin-bottom: 0; }
+.layout-control-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.layout-control-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.layout-window-card { display: flex; flex-direction: column; gap: 13px; }
+.layout-window-title { display: flex; align-items: center; gap: 10px; }
+.layout-window-title .pc-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.layout-window-title b { font-size: 13.5px; }
+.layout-window-title div div { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
+.layout-size-field { display: grid; grid-template-columns: 72px minmax(90px, 1fr) 92px; gap: 9px; align-items: center; font-size: 12px; color: var(--text-2); }
+.layout-size-field input[type='range'] { width: 100%; accent-color: var(--accent); }
+.layout-size-number { display: flex; align-items: center; gap: 4px; color: var(--text-3); }
+.layout-size-number .input { width: 66px; padding: 4px 6px; text-align: right; }
+.layout-auto-size { padding: 8px 10px; border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-3); font-size: 12px; text-align: center; }
+.layout-control-tip { margin: 16px 2px 0; color: var(--text-3); font-size: 11.5px; }
+
 /* ---------------------------------- toasts ---------------------------------- */
 .toasts { position: fixed; bottom: 38px; right: 14px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
 .toast {

@@ -2,7 +2,7 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import 'fake-indexeddb/auto';
 import { createRequire } from 'node:module';
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Kernel, WebCryptoSecretStore } from '@mpw/kernel';
 import { PersistedDbAdapter, IndexedDbBlobStore } from '../src/adapters/webAdapters';
@@ -17,9 +17,11 @@ import filesPlugin from '@mpw/plugin-files';
 import aiPlugin from '@mpw/plugin-ai';
 import tasksPlugin from '@mpw/plugin-tasks';
 import projectsPlugin from '@mpw/plugin-projects';
+import layoutControlsPlugin from '@mpw/plugin-layout-controls';
 import '../src/styles.css';
 
 beforeAll(() => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   // jsdom lacks matchMedia (used by the theme system)
   window.matchMedia = (() => ({
     matches: false,
@@ -39,7 +41,7 @@ async function bootKernel(): Promise<Kernel> {
   });
   kernel.registerBuiltins([
     createHomePlugin(), notesPlugin, referencesPlugin, writingPlugin,
-    emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin,
+    emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin, layoutControlsPlugin,
   ]);
   const report = await kernel.boot();
   expect(report.failed).toEqual([]);
@@ -54,6 +56,8 @@ describe('application boot (full shell over real adapters)', () => {
     expect(kernel.isLoaded('mpw.projects')).toBe(true);
     expect(kernel.isLoaded('mpw.notes')).toBe(true);
     expect(kernel.isLoaded('mpw.email')).toBe(true);
+    expect(kernel.isLoaded('mpw.layout-controls')).toBe(true);
+    expect(kernel.routeComponent('mpw.layout-controls/main')).toBeTruthy();
     expect(kernel.widgetComponent('mpw.home/dashboard')).toBeTruthy();
     // default layout hosts the dashboard
     const ws = kernel.workspaces.list()[0];
@@ -68,13 +72,10 @@ describe('application boot (full shell over real adapters)', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root: Root = createRoot(container);
-    root.render(
-      <AppProvider kernel={kernel}>
-        <App />
-      </AppProvider>
-    );
-    // let React flush effects
-    await new Promise((r) => setTimeout(r, 300));
+    await act(async () => {
+      root.render(<AppProvider kernel={kernel}><App /></AppProvider>);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
     const text = container.textContent ?? '';
     expect(container.querySelector('.shell')).toBeTruthy();
     expect(container.querySelector('.sidebar')).toBeTruthy();
@@ -83,6 +84,14 @@ describe('application boot (full shell over real adapters)', () => {
     expect(text).toContain('AI 助手');
     expect(container.querySelector('.topbar-search input')?.getAttribute('placeholder')).toContain('搜索文件、笔记、文献、邮件');
     expect(container.querySelectorAll('.side-item').length).toBeGreaterThanOrEqual(6);
-    root.unmount();
+    const layoutButton = container.querySelector<HTMLButtonElement>('.side-item[title="窗口大小"]');
+    expect(layoutButton).toBeTruthy();
+    await act(async () => layoutButton!.click());
+    expect(container.textContent).toContain('调整当前工作区中每个模块');
+    const floatingButton = [...container.querySelectorAll('button')].find((button) => button.textContent?.includes('在工作台悬浮调整'));
+    expect(floatingButton).toBeTruthy();
+    await act(async () => floatingButton!.click());
+    expect(container.querySelector('.float-win')).toBeTruthy();
+    await act(async () => root.unmount());
   });
 });

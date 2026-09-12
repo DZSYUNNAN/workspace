@@ -13,6 +13,7 @@
     "@mpw/plugin-ai": "*",
     "@mpw/plugin-email": "*",
     "@mpw/plugin-files": "*",
+    "@mpw/plugin-layout-controls": "*",
     "@mpw/plugin-notes": "*",
     "@mpw/plugin-projects": "*",
     "@mpw/plugin-references": "*",

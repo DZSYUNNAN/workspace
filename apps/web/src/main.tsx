@@ -14,6 +14,7 @@ import filesPlugin from '@mpw/plugin-files';
 import tasksPlugin from '@mpw/plugin-tasks';
 import projectsPlugin from '@mpw/plugin-projects';
 import aiPlugin from '@mpw/plugin-ai';
+import layoutControlsPlugin from '@mpw/plugin-layout-controls';
 import { detectDesktopShell, isTauri, openDesktopData, desktopSecrets } from './adapters/desktop';
 import './styles.css';
 import 'katex/dist/katex.min.css';
@@ -61,7 +62,7 @@ async function boot(): Promise<void> {
   }
   kernel.registerBuiltins([
     createHomePlugin(), notesPlugin, referencesPlugin, writingPlugin,
-    emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin,
+    emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin, layoutControlsPlugin,
   ]);
   const report = await kernel.boot();
   const localDocuments = createLocalDocuments();

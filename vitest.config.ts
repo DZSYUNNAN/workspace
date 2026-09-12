@@ -15,6 +15,7 @@ export default defineConfig({
       '@mpw/plugin-ai': path.resolve(__dirname, 'plugins/ai/src/index.ts'),
       '@mpw/plugin-tasks': path.resolve(__dirname, 'plugins/tasks/src/index.ts'),
       '@mpw/plugin-projects': path.resolve(__dirname, 'plugins/projects/src/index.ts'),
+      '@mpw/plugin-layout-controls': path.resolve(__dirname, 'plugins/layout-controls/src/index.ts'),
     },
   },
   test: {

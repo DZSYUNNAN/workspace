@@ -1,7 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Kernel } from '@mpw/kernel';
-import type { LayoutState } from '@mpw/shared';
+import {
+  LAYOUT_CONTROL_APPLY,
+  LAYOUT_CONTROL_REQUEST,
+  LAYOUT_CONTROL_SNAPSHOT,
+  applyLayoutSizeAction,
+  isLayoutSizeAction,
+  type LayoutControlSnapshot,
+  type LayoutState,
+} from '@mpw/shared';
 import type { WorkspaceData } from './adapters/backup';
+import { floatWidget } from './workspace/layoutOps';
 
 export type AppRoute =
   | { type: 'home' }
@@ -103,15 +112,36 @@ export function AppProvider({ kernel, children, data }: { kernel: Kernel; childr
           // ensure the widget is present: add to center as a tab if missing
           const present = JSON.stringify(prev).includes(d.widgetId);
           if (present) return prev;
-          const next = addWidgetToArea(prev, d.widgetId, 'center');
+          const declaredArea = kernel.enabledWidgets().find((widget) => widget.key === d.widgetId)?.defaultArea;
+          const next = declaredArea === 'float'
+            ? floatWidget(prev, d.widgetId, 160, 90)
+            : addWidgetToArea(prev, d.widgetId, declaredArea === 'left' || declaredArea === 'right' || declaredArea === 'top' || declaredArea === 'bottom' ? declaredArea : 'center');
           kernel.workspaces.saveLayout(workspaceId, JSON.stringify(next));
           return next;
         });
         refresh();
       }),
+      kernel.events.on(LAYOUT_CONTROL_REQUEST, () => {
+        const snapshot: LayoutControlSnapshot = {
+          layout,
+          widgets: kernel.enabledWidgets().map(({ key, title, icon }) => ({ key, title, icon })),
+        };
+        kernel.events.emit(LAYOUT_CONTROL_SNAPSHOT, snapshot);
+      }),
+      kernel.events.on(LAYOUT_CONTROL_APPLY, (payload) => {
+        if (isLayoutSizeAction(payload)) setLayout((current) => applyLayoutSizeAction(current, payload));
+      }),
     ];
     return () => offs.forEach((off) => off());
-  }, [kernel, refresh, pushToast, workspaceId]);
+  }, [kernel, refresh, pushToast, workspaceId, layout, setLayout]);
+
+  useEffect(() => {
+    const snapshot: LayoutControlSnapshot = {
+      layout,
+      widgets: kernel.enabledWidgets().map(({ key, title, icon }) => ({ key, title, icon })),
+    };
+    kernel.events.emit(LAYOUT_CONTROL_SNAPSHOT, snapshot);
+  }, [kernel, layout, version]);
 
   const value = useMemo<AppCtx>(
     () => ({

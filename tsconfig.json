@@ -59,6 +59,9 @@
       ],
       "@mpw/plugin-projects": [
         "plugins/projects/src/index.ts"
+      ],
+      "@mpw/plugin-layout-controls": [
+        "plugins/layout-controls/src/index.ts"
       ]
     }
   },
