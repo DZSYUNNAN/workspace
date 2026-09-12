@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import { Icon } from '@mpw/ui';
 import {
@@ -8,11 +8,13 @@ import {
   listMessages,
   deleteMessage,
   setMessageFlags,
-  addAccount,
+  removeAccount,
   type AccountRecord,
   type MessageRecord,
 } from './store';
-import { getTransport, TRANSPORT_INFO } from './transport';
+import { getTransport } from './transport';
+import { AccountDialog } from './AccountDialog';
+import { accountWork, syncAccount } from './connection';
 
 const FOLDER_LABEL: Record<string, string> = {
   inbox: '收件箱',
@@ -55,22 +57,33 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
   const [filter, setFilter] = useState('');
   const [compose, setCompose] = useState<{ to: string; subject: string; body: string; replyTo?: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false); const [deleteOpen, setDeleteOpen] = useState(false);
+  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const request = useRef(0);
+  const selected = accounts.find((a) => a.id === accountId);
+  const act = async (work: () => Promise<void>): Promise<void> => {
+    setBusy(true); setError('');
+    try { await work(); } catch (e) { setError(String(e instanceof Error ? e.message : e)); }
+    finally { setBusy(false); }
+  };
 
   const reloadAccounts = async (): Promise<void> => {
     const accs = await listAccounts(ctx);
     setAccounts(accs);
-    setAccountId((prev) => prev ?? accs[0]?.id ?? null);
+    setAccountId((prev) => accs.some((a) => a.id === prev) ? prev : accs[0]?.id ?? null);
   };
 
   const reloadMessages = async (): Promise<void> => {
-    if (!accountId) return;
-    setMessages(await listMessages(ctx, accountId, folder));
+    const ticket = ++request.current;
+    if (!accountId) { setMessages([]); return; }
+    const rows = await listMessages(ctx, accountId, folder);
+    if (ticket === request.current) setMessages(rows);
   };
 
   useEffect(() => {
     void reloadAccounts();
     const offs = [
-      ctx.events.on('mail:changed', () => void reloadMessages()),
+      ctx.events.on('mail:accounts-changed', () => void reloadAccounts()),
       ctx.events.on('mail:compose', () => {
         setCompose({ to: '', subject: '', body: '' });
       }),
@@ -93,7 +106,10 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
   }, []);
 
   useEffect(() => {
+    setMessages([]);
     void reloadMessages();
+    const off = ctx.events.on('mail:changed', () => void reloadMessages());
+    return () => { request.current += 1; off(); };
   }, [accountId, folder]);
 
   const openMsg = messages.find((m) => m.id === openId) ?? null;
@@ -121,6 +137,8 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
           className="input"
           style={{ margin: '4px 4px 8px', fontSize: 11.5, width: 'calc(100% - 8px)' }}
           value={accountId ?? ''}
+          disabled={busy || !!compose}
+          aria-label="当前邮箱账户"
           onChange={(e) => {
             setAccountId(e.target.value);
             setOpenId(null);
@@ -138,19 +156,28 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        <button className="btn sm primary" style={{ margin: 6 }} onClick={() => setCompose({ to: '', subject: '', body: '' })}>
+        <button className="btn sm primary" disabled={!selected || busy} style={{ margin: 6 }} onClick={() => setCompose({ to: '', subject: '', body: '' })}>
           <Icon name="plus" size={12} /> 写邮件
         </button>
-        <button className="btn sm" style={{ margin: '0 6px 6px' }} onClick={() => setAddOpen(true)}>
+        <button className="btn sm" disabled={busy} style={{ margin: '0 6px 6px' }} onClick={() => setAddOpen(true)}>
           <Icon name="user" size={12} /> 添加账户
         </button>
+        <button className="btn sm" disabled={!selected || busy || !!compose} style={{ margin: '0 6px 6px' }} onClick={() => setEditOpen(true)}>账户设置</button>
+        <button className="btn sm danger" disabled={!selected || busy || !!compose} style={{ margin: '0 6px 6px' }} onClick={() => setDeleteOpen(true)}>删除账户</button>
       </div>
 
       {/* 列表 */}
       <div className="mail-list">
         <div className="widget-toolbar" style={{ padding: 6 }}>
+          {selected?.kind === 'relay-imap' && <button className="btn sm" disabled={busy} onClick={() => void act(async () => {
+            const result = await syncAccount(ctx, selected.id); await reloadMessages();
+            ctx.ui.notify(`已收取最近 ${result.count} 封邮件${result.skipped ? `；${result.skipped} 封大邮件超出本次限额，请在网页版查看` : ''}`, 'success');
+          })}>{busy ? '处理中…' : '收取邮件'}</button>}
           <input className="input" style={{ flex: 1, minWidth: 60 }} placeholder="搜索邮件…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
+        {error && <div className="err-panel" role="alert">{error}</div>}
+        {selected?.kind === 'relay-imap' && <p style={{ fontSize: 11, padding: 8 }}>收取接收文件夹最近 50 封邮件。已读、星标、归档和删除操作仅作用于本机缓存。附件当前仅显示名称。</p>}
+        {selected?.kind === 'demo' && <p style={{ fontSize: 11, padding: 8 }}>离线演示账户：发送只保存本机记录。</p>}
         <div className="list">
           {filtered.map((m) => (
             <div key={m.id} className={`mail-row${m.id === openId ? ' active' : ''}${m.is_read ? '' : ' unread'}`} onClick={() => void open(m.id)}>
@@ -249,29 +276,29 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
 
       {/* 写邮件 */}
       {compose && (
-        <div className="compose" onPointerDown={(e) => e.target === e.currentTarget && setCompose(null)}>
+        <div className="compose" onPointerDown={(e) => !busy && e.target === e.currentTarget && setCompose(null)}>
           <div className="compose-card">
             <div className="widget-toolbar">
               <b>{compose.replyTo ? '回复' : '新邮件'}</b>
               <span style={{ flex: 1 }} />
-              <button className="icon-btn" onClick={() => setCompose(null)}><Icon name="x" size={14} /></button>
+              <button className="icon-btn" disabled={busy} onClick={() => setCompose(null)}><Icon name="x" size={14} /></button>
             </div>
             <div className="cc-body">
-              <input className="input" placeholder="收件人" value={compose.to} onChange={(e) => setCompose((c) => (c ? { ...c, to: e.target.value } : c))} />
-              <input className="input" placeholder="主题" value={compose.subject} onChange={(e) => setCompose((c) => (c ? { ...c, subject: e.target.value } : c))} />
-              <textarea className="input" placeholder="正文…" value={compose.body} onChange={(e) => setCompose((c) => (c ? { ...c, body: e.target.value } : c))} />
+              <input className="input" disabled={busy} placeholder="收件人" value={compose.to} onChange={(e) => setCompose((c) => (c ? { ...c, to: e.target.value } : c))} />
+              <input className="input" disabled={busy} placeholder="主题" value={compose.subject} onChange={(e) => setCompose((c) => (c ? { ...c, subject: e.target.value } : c))} />
+              <textarea className="input" disabled={busy} placeholder="正文…" value={compose.body} onChange={(e) => setCompose((c) => (c ? { ...c, body: e.target.value } : c))} />
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button className="btn" onClick={async () => {
+                <button className="btn" disabled={busy || !accountId} onClick={() => void act(async () => {
                   if (!accountId) return;
                   await saveDraft(ctx, accountId, compose);
                   setCompose(null);
                   setFolder('drafts');
                   await reloadMessages();
                   ctx.ui.notify('已保存到草稿箱', 'success');
-                }}>
+                })}>
                   存草稿
                 </button>
-                <button className="btn primary" disabled={!compose.to || !compose.subject} onClick={async () => {
+                <button className="btn primary" disabled={busy || !accountId || !compose.to || !compose.subject} onClick={() => void act(async () => {
                   if (!accountId) return;
                   const transport = await getTransport(ctx, accounts.find((a) => a.id === accountId)?.kind ?? 'demo');
                   await transport.send(ctx, accountId, { to: compose.to, subject: compose.subject, body: compose.body });
@@ -279,18 +306,26 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
                   setCompose(null);
                   setFolder('sent');
                   await reloadMessages();
-                  ctx.ui.notify('已发送', 'success');
-                }}>
+                  ctx.ui.notify(selected?.kind === 'demo' ? '演示邮件已保存（未发送到网络）' : 'SMTP 服务器已接受邮件', 'success');
+                })}>
                   <Icon name="send" size={13} /> 发送
                 </button>
               </div>
+              {error && <p className="err-panel" role="alert">{error}</p>}
             </div>
           </div>
         </div>
       )}
 
       {/* 添加账户 */}
-      {addOpen && <AddAccountDialog ctx={ctx} onClose={() => setAddOpen(false)} onAdded={async () => { setAddOpen(false); await reloadAccounts(); }} />}
+      {addOpen && <AccountDialog ctx={ctx} onClose={() => setAddOpen(false)} onSaved={async () => { setAddOpen(false); await reloadAccounts(); }} />}
+      {editOpen && selected && <AccountDialog ctx={ctx} account={selected} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await reloadAccounts(); }} />}
+      {deleteOpen && selected && <div className="compose"><div className="compose-card" role="dialog" aria-label="删除邮箱账户"><div className="cc-body">
+        <b>删除账户 {selected.address}？</b><p>删除本机账户配置、已保存的密码和此账户的本机邮件（含草稿）。服务器上的邮箱和邮件不会删除。</p>
+        <div style={{ display: 'flex', gap: 8 }}><button className="btn" disabled={busy} onClick={() => setDeleteOpen(false)}>取消</button><button className="btn danger" disabled={busy} onClick={() => void act(async () => {
+          await accountWork(ctx, selected.id, () => removeAccount(ctx, selected.id)); setDeleteOpen(false); setOpenId(null); setMessages([]); await reloadAccounts();
+        })}>确认删除本机账户</button></div>{error && <p role="alert">{error}</p>}
+      </div></div></div>}
     </div>
   );
 }
@@ -302,52 +337,6 @@ function fmtTime(ts: number): string {
   if (sameDay) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   if (now.getTime() - ts < 7 * 24 * 3600 * 1000) return d.toLocaleDateString('zh-CN', { weekday: 'long' });
   return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
-}
-
-function AddAccountDialog(props: { ctx: PluginContext; onClose: () => void; onAdded: () => Promise<void> }): React.ReactElement {
-  const { ctx } = props;
-  const [kind, setKind] = useState('demo');
-  const [addr, setAddr] = useState('');
-  const [name, setName] = useState('');
-  const [relay, setRelay] = useState(ctx.settings ? '' : '');
-  void relay;
-  const info = TRANSPORT_INFO.find((t) => t.kind === kind);
-  return (
-    <div className="compose" onPointerDown={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div className="compose-card">
-        <div className="widget-toolbar">
-          <b>添加邮箱账户</b>
-          <span style={{ flex: 1 }} />
-          <button className="icon-btn" onClick={props.onClose}><Icon name="x" size={14} /></button>
-        </div>
-        <div className="cc-body">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {TRANSPORT_INFO.map((t) => (
-              <button key={t.kind} className={`btn sm${kind === t.kind ? ' primary' : ''}`} onClick={() => setKind(t.kind)}>{t.label}</button>
-            ))}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>{info?.hint}</div>
-          <input className="input" placeholder="邮箱地址" value={addr} onChange={(e) => setAddr(e.target.value)} />
-          <input className="input" placeholder="显示名称(如:林伟 · 校园邮箱)" value={name} onChange={(e) => setName(e.target.value)} />
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="btn" onClick={props.onClose}>取消</button>
-            <button
-              className="btn primary"
-              disabled={!addr.trim()}
-              onClick={async () => {
-                await addAccount(ctx, addr.trim(), name.trim() || addr.trim(), kind);
-                ctx.events.emit('mail:changed', {});
-                ctx.ui.notify(`账户「${addr.trim()}」已添加`, 'success');
-                await props.onAdded();
-              }}
-            >
-              添加
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 async function saveDraft(ctx: PluginContext, accountId: string, compose: { to: string; subject: string; body: string }): Promise<void> {

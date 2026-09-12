@@ -29,6 +29,7 @@ export interface MessageRecord {
 }
 
 export interface MessageSeed {
+  remoteKey?: string;
   accountId: string;
   folder: string;
   subject: string;
@@ -50,7 +51,7 @@ export const FOLDERS = ['inbox', 'starred', 'sent', 'drafts', 'archive', 'trash'
 
 export async function initSchema(ctx: PluginContext): Promise<void> {
   const version = await ctx.storage.get<number>('__schema_version', 0);
-  if (version >= 1) return;
+  if (version >= 2) return;
   await ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS ${A} (
     id TEXT PRIMARY KEY, address TEXT NOT NULL, display_name TEXT, provider TEXT NOT NULL,
     kind TEXT NOT NULL DEFAULT 'demo', status TEXT NOT NULL DEFAULT 'ok',
@@ -65,7 +66,10 @@ export async function initSchema(ctx: PluginContext): Promise<void> {
     attachments TEXT NOT NULL DEFAULT '[]',
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER)`);
   await ctx.storage.sql.exec(`CREATE INDEX IF NOT EXISTS p_email_idx_folder ON ${M}(account_id, folder, date DESC)`);
-  await ctx.storage.set('__schema_version', 1);
+  const columns = await ctx.storage.sql.all<{ name: string }>(`PRAGMA table_info(${M})`);
+  if (!columns.some((c) => c.name === 'remote_key')) await ctx.storage.sql.exec(`ALTER TABLE ${M} ADD COLUMN remote_key TEXT`);
+  await ctx.storage.sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS p_email_idx_remote ON ${M}(account_id, remote_key)`);
+  await ctx.storage.set('__schema_version', 2);
 }
 
 export async function listAccounts(ctx: PluginContext): Promise<AccountRecord[]> {
@@ -75,17 +79,37 @@ export async function listAccounts(ctx: PluginContext): Promise<AccountRecord[]>
 export async function addAccount(ctx: PluginContext, address: string, displayName: string, kind = 'demo'): Promise<AccountRecord> {
   const id = uuidv7();
   await ctx.storage.sql.exec(
-    `INSERT INTO ${A} (id, address, display_name, provider, kind, created_at, updated_at) VALUES (?, ?, ?, 'demo', ?, ?, ?)`,
-    [id, address, displayName, kind, nowMs(), nowMs()]
+    `INSERT INTO ${A} (id, address, display_name, provider, kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, address, displayName, kind, kind, nowMs(), nowMs()]
   );
-  return { id, address, display_name: displayName, provider: 'demo', kind };
+  return { id, address, display_name: displayName, provider: kind, kind };
+}
+
+export async function removeAccount(ctx: PluginContext, id: string): Promise<void> {
+  // Delete the credential first. A vault error must not silently orphan a password.
+  await ctx.secrets.delete(`mail.password.${id}`);
+  await ctx.storage.sql.exec(`UPDATE ${A} SET deleted_at = ?, updated_at = ? WHERE id = ?`, [nowMs(), nowMs(), id]);
+  await ctx.storage.sql.exec(`DELETE FROM ${M} WHERE account_id = ?`, [id]);
+  await ctx.storage.delete(`mail.config.${id}`);
+  await ctx.storage.set('ui.openMessageId', null);
+  ctx.events.emit('mail:accounts-changed', {});
+  ctx.events.emit('mail:changed', {});
+}
+
+export async function cacheRemoteMessage(ctx: PluginContext, remoteKey: string, seed: MessageSeed): Promise<void> {
+  const account = await ctx.storage.sql.one(`SELECT id FROM ${A} WHERE id = ? AND deleted_at IS NULL`, [seed.accountId]);
+  if (!account) throw new Error('邮箱账户已删除');
+  const existing = await ctx.storage.sql.one<{ id: string }>(`SELECT id FROM ${M} WHERE account_id = ? AND remote_key = ?`, [seed.accountId, remoteKey]);
+  // Preserve local read/star/archive/trash state when fetching the same UID again.
+  if (existing) return;
+  await addMessage(ctx, { ...seed, remoteKey });
 }
 
 export async function addMessage(ctx: PluginContext, seed: MessageSeed): Promise<string> {
   const id = uuidv7();
   await ctx.storage.sql.exec(
-    `INSERT INTO ${M} (id, account_id, folder, thread_id, subject, from_name, from_addr, to_list, cc_list, body_text, date, is_read, is_starred, labels, has_attachments, attachments, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ${M} (id, account_id, folder, thread_id, subject, from_name, from_addr, to_list, cc_list, body_text, date, is_read, is_starred, labels, has_attachments, attachments, created_at, updated_at, remote_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(account_id, remote_key) DO NOTHING`,
     [
       id,
       seed.accountId,
@@ -104,6 +128,7 @@ export async function addMessage(ctx: PluginContext, seed: MessageSeed): Promise
       JSON.stringify(seed.attachmentNames ?? []),
       nowMs(),
       nowMs(),
+      seed.remoteKey ?? null,
     ]
   );
   return id;
@@ -137,7 +162,7 @@ export async function getMessage(ctx: PluginContext, id: string): Promise<Messag
 
 export async function setMessageFlags(ctx: PluginContext, id: string, flags: { isRead?: boolean; isStarred?: boolean; folder?: string }): Promise<void> {
   const sets: string[] = ['updated_at = ?'];
-  const params: unknown[] = [];
+  const params: unknown[] = [nowMs()];
   if (flags.isRead !== undefined) {
     sets.push('is_read = ?');
     params.push(flags.isRead ? 1 : 0);
@@ -150,7 +175,7 @@ export async function setMessageFlags(ctx: PluginContext, id: string, flags: { i
     sets.push('folder = ?');
     params.push(flags.folder);
   }
-  await ctx.storage.sql.exec(`UPDATE ${M} SET ${sets.join(', ')} WHERE id = ?`, [...params, nowMs(), id]);
+  await ctx.storage.sql.exec(`UPDATE ${M} SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
 }
 
 export async function deleteMessage(ctx: PluginContext, id: string): Promise<void> {

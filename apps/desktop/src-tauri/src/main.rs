@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod local_files;
+mod mail;
 mod storage;
 mod tex;
 mod tex_dependencies;
@@ -14,6 +15,9 @@ fn main() {
         }))
         .setup(storage::setup)
         .invoke_handler(tauri::generate_handler![
+            mail::mail_test,
+            mail::mail_fetch,
+            mail::mail_send,
             tex::compile_latex,
             local_files::local_file_open,
             local_files::local_file_read,

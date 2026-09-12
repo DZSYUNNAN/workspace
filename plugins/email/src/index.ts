@@ -9,9 +9,9 @@ export default definePlugin({
   manifest: {
     id: 'mpw.email',
     name: '邮箱',
-    version: '0.2.0',
+    version: '0.3.0',
     author: 'ModuDesk',
-    description: '统一工作邮箱:多账户、收件箱 / 已发送 / 草稿 / 星标 / 归档,IMAP·SMTP·OAuth2 传输层就绪,内置中文科研场景演示数据。',
+    description: '多账户邮箱：桌面 IMAP/SMTP 加密直连、连接测试、收件缓存与文本发送，支持账户设置和删除；内置离线演示。',
     icon: 'mail',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'network', 'credentials', 'ai:invoke'],
@@ -120,7 +120,7 @@ export default definePlugin({
     };
     ctx.events.on('mail:changed', () => void emitStats());
     await emitStats();
-    ctx.log.info('邮箱插件已就绪(demo 传输)');
+    ctx.log.info('邮箱插件已就绪');
   },
 
   async deactivate() {

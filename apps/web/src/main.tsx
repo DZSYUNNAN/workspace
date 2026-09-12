@@ -51,6 +51,14 @@ async function boot(): Promise<void> {
   });
   // 桌面端(Tauri)存在时注入本地 TeX 编译适配器(XeLaTeX/LuaLaTeX/pdfLaTeX)
   detectDesktopShell(kernel);
+  if (isTauri()) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    kernel.commands.register({ id: 'workspace.mail', title: '桌面邮箱连接' }, () => ({
+      test: (config: unknown, password: string) => invoke('mail_test', { config, password }),
+      fetch: (config: unknown, password: string, folder: string) => invoke('mail_fetch', { config, password, folder }),
+      send: (config: unknown, password: string, outgoing: unknown) => invoke('mail_send', { config, password, outgoing }),
+    }));
+  }
   kernel.registerBuiltins([
     createHomePlugin(), notesPlugin, referencesPlugin, writingPlugin,
     emailPlugin, filesPlugin, tasksPlugin, projectsPlugin, aiPlugin,
