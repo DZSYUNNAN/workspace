@@ -14,6 +14,7 @@ const layout: LayoutState = {
 };
 const snapshot: LayoutControlSnapshot = {
   layout,
+  routes: [{ key: 'mpw.email/main', title: '邮箱', icon: 'mail' }],
   widgets: [
     { key: 'mpw.files/browser', title: '文件', icon: 'folder' },
     { key: 'mpw.notes/list', title: '笔记', icon: 'note' },
@@ -47,5 +48,14 @@ describe('layout size controls', () => {
     expect(reset.sizes).toEqual({ leftW: 250, rightW: 340, topH: 180, bottomH: 160 });
     expect(reset.areas.center).toMatchObject({ kind: 'split', ratio: 0.5 });
     expect(reset.floats[0]).toMatchObject({ w: 520, h: 400 });
+  });
+
+  it('stores module pane sizes and sidebar visibility independently', () => {
+    const resized = applyLayoutSizeAction(layout, { kind: 'modulePane', key: 'localTexPreviewPercent', size: 67 });
+    expect(resized.moduleSizes?.localTexPreviewPercent).toBe(67);
+    const hidden = applyLayoutSizeAction(resized, { kind: 'sidebarVisibility', routeKey: 'mpw.email/main', visible: false });
+    expect(hidden.sidebar?.hiddenRouteKeys).toContain('mpw.email/main');
+    const shown = applyLayoutSizeAction(hidden, { kind: 'showAllSidebarRoutes' });
+    expect(shown.sidebar?.hiddenRouteKeys).toEqual([]);
   });
 });

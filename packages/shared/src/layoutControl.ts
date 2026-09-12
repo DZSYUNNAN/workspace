@@ -5,21 +5,44 @@ export const LAYOUT_CONTROL_SNAPSHOT = 'workspace:layout-control-snapshot';
 export const LAYOUT_CONTROL_APPLY = 'workspace:layout-control-apply';
 
 export interface LayoutWidgetInfo { key: string; title: string; icon: string }
-export interface LayoutControlSnapshot { layout: LayoutState; widgets: LayoutWidgetInfo[] }
+export interface LayoutRouteInfo { key: string; title: string; icon: string }
+export interface LayoutControlSnapshot { layout: LayoutState; widgets: LayoutWidgetInfo[]; routes: LayoutRouteInfo[] }
+
+export const MODULE_SIZE_DEFAULTS = {
+  sidebarWidth: 128,
+  aiPanelWidth: 360,
+  mailFoldersWidth: 150,
+  mailReaderPercent: 50,
+  notesListWidth: 220,
+  notesEditorPercent: 50,
+  writingListWidth: 220,
+  latexPreviewPercent: 54,
+  localTexPreviewPercent: 50,
+  referencesListWidth: 220,
+  annotationPanelWidth: 220,
+  projectsListWidth: 220,
+} as const;
+
+export type ModuleSizeKey = keyof typeof MODULE_SIZE_DEFAULTS;
 
 export type LayoutSizeAction =
   | { kind: 'area'; area: Exclude<DockArea, 'center'>; size: number }
   | { kind: 'split'; area: DockArea; path: ('a' | 'b')[]; ratio: number }
   | { kind: 'float'; widgetId: string; width: number; height: number }
+  | { kind: 'modulePane'; key: ModuleSizeKey; size: number }
+  | { kind: 'sidebarVisibility'; routeKey: string; visible: boolean }
+  | { kind: 'showAllSidebarRoutes' }
   | { kind: 'reset' };
 
 export function isLayoutSizeAction(value: unknown): value is LayoutSizeAction {
   if (!value || typeof value !== 'object') return false;
   const action = value as Partial<LayoutSizeAction>;
-  if (action.kind === 'reset') return true;
+  if (action.kind === 'reset' || action.kind === 'showAllSidebarRoutes') return true;
   if (action.kind === 'area') return ['left', 'right', 'top', 'bottom'].includes(String(action.area)) && typeof action.size === 'number';
   if (action.kind === 'float') return typeof action.widgetId === 'string' && typeof action.width === 'number' && typeof action.height === 'number';
   if (action.kind === 'split') return ['left', 'right', 'top', 'bottom', 'center'].includes(String(action.area)) && Array.isArray(action.path) && action.path.every((step) => step === 'a' || step === 'b') && typeof action.ratio === 'number';
+  if (action.kind === 'modulePane') return typeof action.key === 'string' && action.key in MODULE_SIZE_DEFAULTS && typeof action.size === 'number';
+  if (action.kind === 'sidebarVisibility') return typeof action.routeKey === 'string' && typeof action.visible === 'boolean';
   return false;
 }
 
@@ -40,6 +63,18 @@ function resetSplits(tree: PaneTree | null): PaneTree | null {
 }
 
 export function applyLayoutSizeAction(state: LayoutState, action: LayoutSizeAction): LayoutState {
+  if (action.kind === 'modulePane') {
+    const percent = action.key.endsWith('Percent');
+    const size = clamp(action.size, percent ? 20 : 80, percent ? 80 : 900);
+    if (action.key === 'sidebarWidth') return { ...state, sidebar: { ...state.sidebar, width: clamp(size, 84, 260) } };
+    return { ...state, moduleSizes: { ...state.moduleSizes, [action.key]: size } };
+  }
+  if (action.kind === 'sidebarVisibility') {
+    const hidden = new Set(state.sidebar?.hiddenRouteKeys ?? []);
+    if (action.visible) hidden.delete(action.routeKey); else hidden.add(action.routeKey);
+    return { ...state, sidebar: { ...state.sidebar, hiddenRouteKeys: [...hidden] } };
+  }
+  if (action.kind === 'showAllSidebarRoutes') return { ...state, sidebar: { ...state.sidebar, hiddenRouteKeys: [] } };
   if (action.kind === 'area') {
     const key = action.area === 'left' ? 'leftW' : action.area === 'right' ? 'rightW' : action.area === 'top' ? 'topH' : 'bottomH';
     const vertical = action.area === 'top' || action.area === 'bottom';
@@ -67,5 +102,7 @@ export function applyLayoutSizeAction(state: LayoutState, action: LayoutSizeActi
       top: resetSplits(state.areas.top), bottom: resetSplits(state.areas.bottom), center: resetSplits(state.areas.center),
     },
     floats: state.floats.map((item) => ({ ...item, w: 520, h: 400 })),
+    moduleSizes: {},
+    sidebar: { ...state.sidebar, width: MODULE_SIZE_DEFAULTS.sidebarWidth },
   };
 }

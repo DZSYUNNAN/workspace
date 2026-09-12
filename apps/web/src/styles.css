@@ -237,6 +237,18 @@ input, select, textarea { font: inherit; color: inherit; }
 .layout-control-heading .sub { margin-bottom: 0; }
 .layout-control-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .layout-control-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.layout-section-title { margin: 20px 0 10px; font-size: 15px; }
+.layout-pane-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 10px; }
+.layout-pane-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.layout-pane-card > div:first-child b { font-size: 13px; }
+.layout-pane-card > div:first-child div { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
+.layout-sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.layout-sidebar-heading .layout-section-title { margin-bottom: 4px; }
+.layout-route-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.layout-route-option { display: flex; align-items: center; gap: 8px; padding: 9px 10px; cursor: pointer; }
+.layout-route-option .pc-icon { color: var(--accent); display: flex; }
+.layout-route-option > span:nth-child(2) { flex: 1; font-size: 12.5px; }
+.layout-route-option input { accent-color: var(--accent); }
 .layout-window-card { display: flex; flex-direction: column; gap: 13px; }
 .layout-window-title { display: flex; align-items: center; gap: 10px; }
 .layout-window-title .pc-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
@@ -276,7 +288,7 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* --------------------------------- AI panel --------------------------------- */
 .ai-panel {
-  width: 360px; flex: none; background: var(--panel); border-left: 1px solid var(--border);
+  width: var(--mpw-ai-panel-width, 360px); flex: none; background: var(--panel); border-left: 1px solid var(--border);
   display: flex; flex-direction: column; min-height: 0;
 }
 .ai-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 12.5px; }
@@ -330,11 +342,11 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* mail */
 .mail-layout { display: flex; height: 100%; min-height: 0; }
-.mail-folders { width: 150px; flex: none; border-right: 1px solid var(--border); padding: 8px 6px; display: flex; flex-direction: column; gap: 1px; }
+.mail-folders { width: var(--mpw-mail-folders-width, 150px); flex: none; border-right: 1px solid var(--border); padding: 8px 6px; display: flex; flex-direction: column; gap: 1px; }
 .mail-folder-btn { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 12.5px; text-align: left; }
 .mail-folder-btn:hover { background: var(--panel-2); }
 .mail-folder-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.mail-list { width: min(320px, 42%); flex: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.mail-list { flex: 1; min-width: 180px; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .mail-list .list { flex: 1; }
 .mail-row { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
 .mail-row:hover { background: var(--panel-2); }
@@ -343,7 +355,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .mail-row .mr-from { font-weight: 600; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .mail-row .mr-sub { color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mail-row.unread .mr-from::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 6px; }
-.mail-reader { flex: 1; min-width: 0; overflow: auto; padding: 18px 22px; }
+.mail-reader { flex: 0 0 var(--mpw-mail-reader-percent, 50%); min-width: 0; overflow: auto; padding: 18px 22px; }
 .mail-reader h2 { margin: 0 0 6px; font-size: 17px; }
 .compose { position: absolute; inset: 0; background: rgb(8 10 14 / 0.4); z-index: 80; display: flex; align-items: center; justify-content: center; }
 .compose-card { width: min(620px, 94%); background: var(--panel); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow-float); display: flex; flex-direction: column; overflow: hidden; }
@@ -370,6 +382,15 @@ input, select, textarea { font: inherit; color: inherit; }
 /* notes editor */
 .notes-split { display: flex; height: 100%; min-height: 0; }
 .notes-side { width: 220px; flex: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.notes-list-side { width: var(--mpw-notes-list-width, 220px); }
+.writing-side { width: var(--mpw-writing-list-width, 220px); }
+.references-side { width: var(--mpw-references-list-width, 220px); }
+.projects-side { width: var(--mpw-projects-list-width, 220px); }
+.note-content-split > .md { min-width: 0; }
+.local-document-split { display: flex; flex: 1; min-height: 0; overflow: auto; }
+.local-document-source { flex: 1; min-width: 0; overflow: auto; padding: 16px; }
+.local-document-split.has-preview .local-document-source { flex: 0 0 calc(100% - var(--mpw-local-tex-preview-percent, 50%)); }
+.local-document-preview { flex: 0 0 var(--mpw-local-tex-preview-percent, 50%); min-width: 0; min-height: 450px; border-left: 1px solid var(--border); }
 .notes-side .list { flex: 1; }
 .note-editor-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .note-editor-wrap .input.title-in { border: none; background: transparent; font-size: 17px; font-weight: 600; padding: 12px 16px 0; }
@@ -379,7 +400,7 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* latex */
 .latex-split { display: flex; height: 100%; min-height: 0; }
-.latex-src { width: 46%; flex: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.latex-src { width: calc(100% - var(--mpw-latex-preview-percent, 54%)); flex: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .latex-prev { flex: 1; min-width: 0; overflow: auto; background: var(--bg); }
 .latex-page { background: #fff; color: #111; margin: 18px auto; padding: 46px 52px; width: min(640px, 92%); min-height: 700px; box-shadow: var(--shadow); font-family: 'Latin Modern Roman', Georgia, 'Times New Roman', serif; font-size: 14.5px; line-height: 1.65; }
 .latex-page h1 { font-size: 19px; text-align: center; margin: 0.4em 0 0.8em; } 
@@ -426,7 +447,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .avatar:hover { filter: brightness(0.96); }
 
 /* 侧栏:图标 + 文字 */
-.sidebar { width: 128px; align-items: stretch; padding: 10px 8px; gap: 2px; }
+.sidebar { width: var(--mpw-sidebar-width, 128px); align-items: stretch; padding: 10px 8px; gap: 2px; }
 .sidebar .sep { width: auto; margin: 8px 6px; }
 .sidebar .side-item {
   width: 100%; height: 34px; flex-direction: row; gap: 10px; padding: 0 12px;
@@ -482,7 +503,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .pdf-show-annotations { position: absolute; right: 10px; bottom: 10px; z-index: 6; }
 
 /* 批注列表面板 */
-.anno-panel { width: 220px; flex: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.anno-panel { width: var(--mpw-annotation-panel-width, 220px); flex: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .anno-panel .list { flex: 1; }
 .anno-row { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11.5px; cursor: pointer; }
 .anno-row:hover { background: var(--panel-2); }
@@ -503,4 +524,6 @@ input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 900px) {
   .sidebar { width: 46px; }
   .sidebar .side-item span { display: none; }
+  .local-document-split.has-preview { flex-direction: column; }
+  .local-document-split.has-preview .local-document-source, .local-document-preview { flex: 0 0 auto; width: 100%; }
 }

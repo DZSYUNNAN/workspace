@@ -146,7 +146,7 @@ export function LibraryView(props: {
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       {/* library list */}
-      <div className="notes-side" style={props.compact ? { width: 170 } : undefined}>
+      <div className="notes-side references-side" style={props.compact ? { width: 170 } : undefined}>
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="搜索文献库…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           <button className="btn sm primary" title="导入文献" onClick={() => setImportOpen(true)}>

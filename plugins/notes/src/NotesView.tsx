@@ -106,7 +106,7 @@ export function NotesView(props: {
 
   return (
     <div className="notes-split">
-      <div className="notes-side" style={compact ? { width: 150 } : undefined}>
+      <div className="notes-side notes-list-side" style={compact ? { width: 150 } : undefined}>
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <input className="input" style={{ flex: 1, minWidth: 50 }} placeholder="筛选…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           <button
@@ -160,12 +160,12 @@ export function NotesView(props: {
                 <Icon name="trash" size={12} />
               </button>
             </div>
-            <div style={{ flex: 1, minHeight: 0, display: mode === 'split' ? 'flex' : 'block' }}>
+            <div className={mode === 'split' ? 'note-content-split' : ''} style={{ flex: 1, minHeight: 0, display: mode === 'split' ? 'flex' : 'block' }}>
               {mode !== 'preview' && (
                 <textarea
                   className="input"
                   style={{
-                    flex: 1,
+                    flex: mode === 'split' ? '0 0 var(--mpw-notes-editor-percent, 50%)' : 1,
                     border: 'none',
                     borderRadius: 0,
                     resize: 'none',

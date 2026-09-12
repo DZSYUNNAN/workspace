@@ -34,6 +34,10 @@ export interface LayoutState {
   areas: Record<DockArea, PaneTree | null>;
   floats: FloatWindow[];
   sizes: AreaSizes;
+  /** User-adjustable widths for panes inside plugin views. Unknown keys are ignored. */
+  moduleSizes?: Record<string, number>;
+  /** Sidebar presentation is independent from plugin installation/enabled state. */
+  sidebar?: { width?: number; hiddenRouteKeys?: string[] };
 }
 
 export function leaf(widgetId: string): PaneTree {

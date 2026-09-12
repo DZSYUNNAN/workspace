@@ -160,7 +160,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
 
   return (
     <div className="notes-split">
-      <div className="notes-side" style={props.compact ? { width: 150 } : undefined}>
+      <div className="notes-side writing-side" style={props.compact ? { width: 150 } : undefined}>
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-3)', flex: 1 }}>{docs.length} 篇文档</span>
           <button

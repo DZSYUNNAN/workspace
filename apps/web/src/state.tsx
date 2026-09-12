@@ -125,6 +125,7 @@ export function AppProvider({ kernel, children, data }: { kernel: Kernel; childr
         const snapshot: LayoutControlSnapshot = {
           layout,
           widgets: kernel.enabledWidgets().map(({ key, title, icon }) => ({ key, title, icon })),
+          routes: kernel.enabledRoutes().map(({ key, title, icon }) => ({ key, title, icon })),
         };
         kernel.events.emit(LAYOUT_CONTROL_SNAPSHOT, snapshot);
       }),
@@ -139,6 +140,7 @@ export function AppProvider({ kernel, children, data }: { kernel: Kernel; childr
     const snapshot: LayoutControlSnapshot = {
       layout,
       widgets: kernel.enabledWidgets().map(({ key, title, icon }) => ({ key, title, icon })),
+      routes: kernel.enabledRoutes().map(({ key, title, icon }) => ({ key, title, icon })),
     };
     kernel.events.emit(LAYOUT_CONTROL_SNAPSHOT, snapshot);
   }, [kernel, layout, version]);

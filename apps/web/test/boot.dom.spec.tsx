@@ -87,7 +87,12 @@ describe('application boot (full shell over real adapters)', () => {
     const layoutButton = container.querySelector<HTMLButtonElement>('.side-item[title="窗口大小"]');
     expect(layoutButton).toBeTruthy();
     await act(async () => layoutButton!.click());
-    expect(container.textContent).toContain('调整当前工作区中每个模块');
+    expect(container.textContent).toContain('调整模块内部区域、工作台窗口和左侧导航');
+    expect(container.textContent).toContain('本地 TeX PDF');
+    const mailVisibility = [...container.querySelectorAll<HTMLLabelElement>('.layout-route-option')].find((label) => label.textContent?.includes('邮箱'))?.querySelector<HTMLInputElement>('input');
+    expect(mailVisibility?.checked).toBe(true);
+    await act(async () => mailVisibility!.click());
+    expect(container.querySelector('.sidebar .side-item[title="邮箱"]')).toBeNull();
     const floatingButton = [...container.querySelectorAll('button')].find((button) => button.textContent?.includes('在工作台悬浮调整'));
     expect(floatingButton).toBeTruthy();
     await act(async () => floatingButton!.click());

@@ -1,4 +1,5 @@
 import React from 'react';
+import { MODULE_SIZE_DEFAULTS } from '@mpw/shared';
 import { useApp } from './state';
 import { useTheme } from './theme';
 import { TopBar } from './shell/TopBar';
@@ -14,7 +15,16 @@ import { CloseDialog } from './shell/CloseDialog';
 
 export function App(): React.ReactElement {
   useTheme();
-  const { kernel, route } = useApp();
+  const { kernel, route, layout } = useApp();
+  const size = { ...MODULE_SIZE_DEFAULTS, ...layout.moduleSizes, sidebarWidth: layout.sidebar?.width ?? MODULE_SIZE_DEFAULTS.sidebarWidth };
+  const shellStyle = {
+    '--mpw-sidebar-width': `${size.sidebarWidth}px`, '--mpw-ai-panel-width': `${size.aiPanelWidth}px`,
+    '--mpw-mail-folders-width': `${size.mailFoldersWidth}px`, '--mpw-mail-reader-percent': `${size.mailReaderPercent}%`,
+    '--mpw-notes-list-width': `${size.notesListWidth}px`, '--mpw-notes-editor-percent': `${size.notesEditorPercent}%`,
+    '--mpw-writing-list-width': `${size.writingListWidth}px`, '--mpw-latex-preview-percent': `${size.latexPreviewPercent}%`,
+    '--mpw-local-tex-preview-percent': `${size.localTexPreviewPercent}%`, '--mpw-references-list-width': `${size.referencesListWidth}px`,
+    '--mpw-annotation-panel-width': `${size.annotationPanelWidth}px`, '--mpw-projects-list-width': `${size.projectsListWidth}px`,
+  } as React.CSSProperties;
 
   const center = (() => {
     switch (route.type) {
@@ -40,7 +50,7 @@ export function App(): React.ReactElement {
   })();
 
   return (
-    <div className="shell">
+    <div className="shell" style={shellStyle}>
       <TopBar />
       <div className="shell-main">
         <Sidebar />

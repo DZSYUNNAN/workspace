@@ -9,9 +9,10 @@ function sameRoute(a: AppRoute, b: AppRoute): boolean {
 }
 
 export function Sidebar(): React.ReactElement {
-  const { kernel, route, navigate } = useApp();
+  const { kernel, route, navigate, layout } = useApp();
   const routes = kernel.enabledRoutes();
-  const main = routes.filter((r) => r.key !== 'mpw.ai/main');
+  const hidden = new Set(layout.sidebar?.hiddenRouteKeys ?? []);
+  const main = routes.filter((r) => r.key !== 'mpw.ai/main' && !hidden.has(r.key));
   return (
     <div className="sidebar">
       <button

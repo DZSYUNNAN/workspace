@@ -2,12 +2,29 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { PluginContext } from '@mpw/kernel';
 import {
   LAYOUT_CONTROL_APPLY, LAYOUT_CONTROL_REQUEST, LAYOUT_CONTROL_SNAPSHOT,
-  type DockArea, type LayoutControlSnapshot, type LayoutSizeAction,
+  MODULE_SIZE_DEFAULTS,
+  type DockArea, type LayoutControlSnapshot, type LayoutSizeAction, type ModuleSizeKey,
 } from '@mpw/shared';
 import { Icon } from '@mpw/ui';
 import { layoutWindows, type WindowControl } from './layoutWindows';
 
 const areaLabels: Record<DockArea | 'float', string> = { left: '左侧', center: '中央', right: '右侧', top: '顶部', bottom: '底部', float: '浮动窗口' };
+
+interface PaneSetting { key: ModuleSizeKey; label: string; hint: string; min: number; max: number; unit: 'px' | '%' }
+const paneSettings: PaneSetting[] = [
+  { key: 'sidebarWidth', label: '主导航栏', hint: '左侧图标与文字区域', min: 84, max: 260, unit: 'px' },
+  { key: 'aiPanelWidth', label: 'AI 助手', hint: '右侧 AI 对话区域', min: 240, max: 720, unit: 'px' },
+  { key: 'mailFoldersWidth', label: '邮件文件夹', hint: '邮箱账户与文件夹区域', min: 100, max: 360, unit: 'px' },
+  { key: 'mailReaderPercent', label: '邮件正文', hint: '邮件内容窗口的宽度占比', min: 25, max: 75, unit: '%' },
+  { key: 'notesListWidth', label: '笔记列表', hint: '笔记标题列表区域', min: 120, max: 520, unit: 'px' },
+  { key: 'notesEditorPercent', label: '笔记编辑区', hint: '分栏模式中的源码占比', min: 20, max: 80, unit: '%' },
+  { key: 'writingListWidth', label: '写作文档列表', hint: '本地文档和工作区文稿列表', min: 120, max: 520, unit: 'px' },
+  { key: 'localTexPreviewPercent', label: '本地 TeX PDF', hint: '编译后 PDF 预览宽度占比', min: 20, max: 80, unit: '%' },
+  { key: 'latexPreviewPercent', label: 'LaTeX PDF 预览', hint: '工作区 LaTeX 预览宽度占比', min: 20, max: 80, unit: '%' },
+  { key: 'referencesListWidth', label: '文献列表', hint: '文献库与条目列表区域', min: 140, max: 560, unit: 'px' },
+  { key: 'annotationPanelWidth', label: 'PDF 批注栏', hint: '高亮和批注列表区域', min: 140, max: 560, unit: 'px' },
+  { key: 'projectsListWidth', label: '项目列表', hint: '项目选择区域', min: 120, max: 520, unit: 'px' },
+];
 
 export function LayoutControlsView({ ctx }: { ctx: PluginContext }): React.ReactElement {
   const [snapshot, setSnapshot] = useState<LayoutControlSnapshot | null>(null);
@@ -22,18 +39,41 @@ export function LayoutControlsView({ ctx }: { ctx: PluginContext }): React.React
 
   return <div className="view layout-control-view">
     <div className="layout-control-heading">
-      <div><h1>窗口大小</h1><p className="sub">调整当前工作区中每个模块的停靠区域、分栏占比或浮动窗口尺寸，更改会自动保存。</p></div>
+      <div><h1>界面布局</h1><p className="sub">调整模块内部区域、工作台窗口和左侧导航。更改仅作用于当前工作区并自动保存。</p></div>
       <div className="layout-control-actions">
         <button className="btn primary" onClick={() => ctx.ui.openWidget('mpw.layout-controls/panel')}><Icon name="float" size={14} /> 在工作台悬浮调整</button>
         <button className="btn" onClick={() => { apply({ kind: 'reset' }); ctx.ui.notify('窗口尺寸已恢复默认值', 'success'); }}><Icon name="refresh" size={14} /> 恢复默认尺寸</button>
       </div>
     </div>
+    {snapshot && <>
+      <h2 className="layout-section-title">模块内部区域</h2>
+      <div className="layout-pane-grid">
+        {paneSettings.map((setting) => {
+          const value = setting.key === 'sidebarWidth'
+            ? snapshot.layout.sidebar?.width ?? MODULE_SIZE_DEFAULTS.sidebarWidth
+            : snapshot.layout.moduleSizes?.[setting.key] ?? MODULE_SIZE_DEFAULTS[setting.key];
+          return <section className="card layout-pane-card" key={setting.key}>
+            <div><b>{setting.label}</b><div>{setting.hint}</div></div>
+            <SizeField label="尺寸" value={value} min={setting.min} max={setting.max} unit={setting.unit} onChange={(size) => apply({ kind: 'modulePane', key: setting.key, size })} />
+          </section>;
+        })}
+      </div>
+      <div className="layout-sidebar-heading"><h2 className="layout-section-title">左侧导航显示</h2><button className="btn sm" onClick={() => apply({ kind: 'showAllSidebarRoutes' })}>显示全部</button></div>
+      <p className="sub">隐藏入口不会停用或卸载插件，工作台中已经打开的窗口不受影响。</p>
+      <div className="layout-route-grid">
+        {snapshot.routes.filter((item) => item.key !== 'mpw.ai/main').map((item) => {
+          const visible = !(snapshot.layout.sidebar?.hiddenRouteKeys ?? []).includes(item.key);
+          return <label className="card layout-route-option" key={item.key}><span className="pc-icon"><Icon name={item.icon} size={15} /></span><span>{item.title}</span><input type="checkbox" checked={visible} onChange={(event) => apply({ kind: 'sidebarVisibility', routeKey: item.key, visible: event.target.checked })} /></label>;
+        })}
+      </div>
+      <h2 className="layout-section-title">工作台窗口</h2>
+    </>}
     {!snapshot && <div className="empty-state">正在读取当前布局…</div>}
     {snapshot && windows.length === 0 && <div className="empty-state">当前工作区没有打开的模块</div>}
     <div className="layout-control-list">
       {windows.map((windowInfo) => <WindowSizeCard key={`${windowInfo.location}-${windowInfo.widgetId}`} info={windowInfo} snapshot={snapshot!} apply={apply} />)}
     </div>
-    <p className="layout-control-tip">同一标签组中的模块共用一个窗口；调整其中任意模块，会同步改变该标签组。中央单窗口会自动占满剩余空间。</p>
+    <p className="layout-control-tip">同一标签组中的模块共用一个工作台窗口；调整其中任意模块，会同步改变该标签组。中央单窗口会自动占满剩余空间。</p>
   </div>;
 }
 

@@ -61,8 +61,8 @@ export function LocalDocumentEditor({ session, onDetach, ctx }: { session: Local
     {(session.error || error) && <div className="err-panel" role="alert">{session.error || error}</div>}
     {isTex && log && <details open={!!error} style={{ padding: '0 12px' }}><summary>编译日志</summary><pre style={{ maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{log}</pre></details>}
     {pdf && session.texts[0] !== compiledText && <p role="status" style={{ padding: '0 12px' }}>内容已修改，右侧显示上一次编译结果，请重新编译。</p>}
-    <div style={{ display: 'flex', flexWrap: 'wrap', flex: 1, minHeight: 0, overflow: 'auto' }}>
-    <div style={{ flex: '1 1 300px', minWidth: 0, overflow: 'auto', padding: 16 }}>
+    <div className={pdf ? 'local-document-split has-preview' : 'local-document-split'}>
+    <div className="local-document-source">
       {session.codec.blocks.length === 0 && <p>文档没有可编辑的正文段落。</p>}
       {session.codec.blocks.map((block, i) => <div key={i} style={{ marginBottom: session.codec.kind === 'docx' ? 10 : 0 }}>
         {session.codec.kind === 'docx' && <label htmlFor={`local-paragraph-${i}`} style={{ fontSize: 11, color: 'var(--text-3)' }}>段落 {i + 1}{!block.editable && ' · 复杂内容只读'}</label>}
@@ -72,7 +72,7 @@ export function LocalDocumentEditor({ session, onDetach, ctx }: { session: Local
           style={{ width: '100%', resize: 'vertical', lineHeight: 1.8, fontFamily: session.codec.kind === 'text' ? 'Consolas, monospace' : 'inherit' }} />
       </div>)}
     </div>
-    {pdf && <div style={{ flex: '1 1 350px', minWidth: 0, minHeight: 450, borderLeft: '1px solid var(--border)' }}><PdfPreview bytes={pdf} /></div>}
+    {pdf && <div className="local-document-preview"><PdfPreview bytes={pdf} /></div>}
     </div>
   </div>;
 }

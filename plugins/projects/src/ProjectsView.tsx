@@ -74,7 +74,7 @@ export function ProjectsView(props: { ctx: PluginContext }): React.ReactElement 
 
   return (
     <div className="notes-split">
-      <div className="notes-side">
+      <div className="notes-side projects-side">
         <div className="widget-toolbar" style={{ padding: 6 }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-3)', flex: 1 }}>{projects.length} 个项目</span>
           <button className="btn sm primary" title="新建项目" onClick={() => setCreating(true)}>
