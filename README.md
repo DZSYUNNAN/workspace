@@ -1,6 +1,6 @@
 # Modular Personal Workspace (MPW)
 
-## 稳定可用版 0.7.1
+## 稳定可用版 0.8.0
 
 Windows 安装包与 Web 静态资源由 `npm run desktop:build` 及 `npm run build` 生成。
 日常使用与迁移说明见 [docs/STABLE-GUIDE.md](docs/STABLE-GUIDE.md)，验收记录见 [docs/STABILIZATION.md](docs/STABILIZATION.md)。
@@ -25,6 +25,7 @@ A personal digital productivity operating system for Windows & mobile — worksp
 | [PLUGIN_SPEC.md](PLUGIN_SPEC.md) | Plugin SDK: manifest, lifecycle, permissions, contributions |
 | [DATABASE.md](DATABASE.md) | SQLite schema, migrations, blob/secret storage, sync readiness |
 | [ROADMAP.md](ROADMAP.md) | Phase 0→7 plan with exit criteria |
+| [docs/PLUGIN_DEVELOPMENT_GUIDE.md](docs/PLUGIN_DEVELOPMENT_GUIDE.md) | 插件制作、测试、权限和市场发布教程 |
 
 ## Repository layout
 ```

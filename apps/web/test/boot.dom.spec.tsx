@@ -98,6 +98,16 @@ describe('application boot (full shell over real adapters)', () => {
     expect(floatingButton).toBeTruthy();
     await act(async () => floatingButton!.click());
     expect(container.querySelector('.float-win')).toBeTruthy();
+    const pluginCenterButton = container.querySelector<HTMLButtonElement>('.side-item[title="插件中心"]');
+    expect(pluginCenterButton).toBeTruthy();
+    await act(async () => pluginCenterButton!.click());
+    expect(container.textContent).toContain('插件市场');
+    expect(container.textContent).toContain('浏览市场');
+    const developButton = [...container.querySelectorAll<HTMLButtonElement>('.plugin-market-tabs button')].find((button) => button.textContent === '开发插件');
+    expect(developButton).toBeTruthy();
+    await act(async () => developButton!.click());
+    expect(container.textContent).toContain('下载开发模板');
+    expect(container.textContent).toContain('检查发布清单');
     await act(async () => root.unmount());
   });
 });

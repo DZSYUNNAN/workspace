@@ -166,10 +166,13 @@ export interface WorkspacePlugin {
 
 State machine transitions are the kernel's job — plugins never mutate their own state.
 
-## 5. Built-in vs external packages
+## 5. Built-in and community packages
 
-- **v1 (Phase 1–2):** first-party plugins live in `plugins/*` workspaces, versioned and contracted exactly like external ones — they only ever receive `PluginContext`. This keeps the boundary honest from day one.
-- **Phase 7+:** external `.mpwx` packages (zip: `manifest.json`, ES module bundle, assets), installed via file or Plugin Center marketplace, loaded in an off-thread sandbox with a structured-clone message bridge (Comlink-style) before being granted in-process trust tiers.
+- First-party plugins live in `plugins/*` workspaces and only receive `PluginContext`.
+- In 0.8, community plugins use the same source layout and enter the market through source review, automated tests and a ModuDesk release. This keeps executable code reviewable before it reaches users.
+- Runtime installation of external `.mpwx` packages remains reserved for a future isolated loader. The market must not execute an unsigned remote JavaScript bundle in the main WebView.
+
+Community submissions include `modudesk.plugin.json` with `schemaVersion`, `id`, `name`, `version`, `author`, `description`, `license`, `repository`, `permissions` and `categories`. These fields must agree with the runtime manifest. See `docs/PLUGIN_DEVELOPMENT_GUIDE.md` for the development and publication workflow.
 
 ## 6. Permissions & consent
 
