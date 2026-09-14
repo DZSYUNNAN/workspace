@@ -1,7 +1,7 @@
 import React from 'react';
 
 export { ContinuousPdf } from './ContinuousPdf';
-export type { PdfHighlight, PdfRect, PdfScrollRequest, PdfTextSelection } from './ContinuousPdf';
+export type { PdfHighlight, PdfPoint, PdfRect, PdfScrollRequest, PdfTextSelection } from './ContinuousPdf';
 
 export function ResizeHandle({ axis = 'x', direction = 1, onDelta, title = '拖动调整大小' }: { axis?: 'x' | 'y'; direction?: 1 | -1; onDelta(delta: number): void; title?: string }): React.ReactElement {
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {

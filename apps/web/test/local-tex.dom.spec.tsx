@@ -20,11 +20,34 @@ describe('local TeX editor compile flow', () => {
     await act(async () => root.render(<LocalDocumentEditor session={session} onDetach={async () => {}} />));
     await act(async () => session.edit(0, 'latest source'));
     await act(async () => { const select = el.querySelector('select')!; select.value = 'lualatex'; select.dispatchEvent(new Event('change', { bubbles: true })); });
-    const clickCompile = async () => act(async () => { [...el.querySelectorAll('button')].find((b) => b.textContent === '编译并预览 PDF')!.click(); });
+    const clickCompile = async () => act(async () => { [...el.querySelectorAll('button')].find((b) => b.textContent === '保存并编译')!.click(); });
     await clickCompile(); expect(calls).toEqual(['save', 'compile']); expect(compile.mock.calls[0][2]).toBe('lualatex');
     expect(el.querySelector('[aria-label="PDF test preview"]')?.textContent).toBe('%PDF-fixture'); expect(el.textContent).toContain('下载 PDF');
     await act(async () => session.edit(0, 'changed again')); expect(el.textContent).toContain('上一次编译结果');
-    fail = true; await clickCompile(); expect(el.querySelector('[aria-label="PDF test preview"]')).toBeNull(); expect(el.textContent).toContain('Missing input file');
+    fail = true; await clickCompile(); expect(el.querySelector('[aria-label="PDF test preview"]')?.textContent).toBe('%PDF-fixture'); expect(el.textContent).toContain('Missing input file');
+    await act(async () => root.unmount());
+  });
+  it('builds output and rewrite prompts without compiling or changing the source', async () => {
+    const { buildPaperAiRequest } = await import('../../../plugins/writing/src/LocalDocumentEditor');
+    expect(buildPaperAiRequest('zh-en', '中文段落', '', 'source').system).toContain('翻译');
+    expect(buildPaperAiRequest('review', '重点检查证据', '', '\\section{Result}').prompt).toContain('当前 paper.tex');
+    expect(buildPaperAiRequest('rewrite', '改写摘要', '\\begin{abstract}x', 'source').prompt).toContain('待改写内容');
+  });
+  it('sending an AI task leaves the compiled PDF and compiler untouched', async () => {
+    const compile = vi.fn().mockResolvedValue({ ok: true, pdfBase64: btoa('%PDF-before-ai'), log: 'ok' });
+    const manager = new LocalDocuments({
+      open: async () => ({ id: 'tex-ai', name: 'paper.tex', path: 'paper.tex', stamp: 'source', bytes: new TextEncoder().encode('source') }),
+      read: vi.fn(), write: vi.fn().mockResolvedValue('source'), compile,
+    });
+    const ctx = { ai: { run: vi.fn().mockResolvedValue({ text: 'polished output', provider: 'demo' }) }, commands: { execute: vi.fn().mockResolvedValue(null) }, events: { emit: vi.fn() } };
+    const session = (await manager.open())!; const el = document.createElement('div'); const root = createRoot(el);
+    await act(async () => root.render(<LocalDocumentEditor session={session} ctx={ctx as never} onDetach={async () => {}} />));
+    await act(async () => [...el.querySelectorAll('button')].find((button) => button.textContent === '保存并编译')!.click());
+    expect(el.querySelector('[aria-label="PDF test preview"]')?.textContent).toBe('%PDF-before-ai');
+    await act(async () => [...el.querySelectorAll('button')].find((button) => button.textContent === '发送到 AI')!.click());
+    expect(ctx.ai.run).toHaveBeenCalledTimes(1); expect(compile).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('[aria-label="PDF test preview"]')?.textContent).toBe('%PDF-before-ai');
+    expect(el.textContent).toContain('polished output');
     await act(async () => root.unmount());
   });
   it('does not invoke the compiler if syncing the source fails', async () => {

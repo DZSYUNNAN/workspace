@@ -11,9 +11,9 @@ export default definePlugin({
   manifest: {
     id: 'mpw.writing',
     name: '写作',
-    version: '0.2.0',
+    version: '0.7.0',
     author: 'ModuDesk',
-    description: '双写作环境:模式 A(类 Word 富文本,.docx 导出)与模式 B(LaTeX 工程多文件 + 实时预览 + 本地编译)。',
+    description: '富文本与本地论文写作：paper.tex/PDF 双栏、SyncTeX 反向定位、AI 翻译润色与审稿检查。',
     icon: 'pen',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'ai:invoke', 'native'],

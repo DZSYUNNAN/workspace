@@ -57,4 +57,13 @@ describe('AI gateway & demo provider', () => {
     await expect(ai.run('hello')).resolves.toMatchObject({ text: '桌面连接正常', provider: 'openai' });
     expect(requested).toBe('https://api.openai.com/v1/chat/completions');
   });
+
+  it('provides the DeepSeek V4 Flash preset without storing a key in code', async () => {
+    const ai = gateway('deepseek-v4-flash', 'private-key');
+    let requested = ''; let requestBody = '';
+    ai.setRequestTransport(async (url, init) => { requested = url; requestBody = String(init.body); return { choices: [{ message: { content: 'ok' } }] }; });
+    await expect(ai.run('hello')).resolves.toMatchObject({ provider: 'deepseek-v4-flash', model: 'deepseek-v4-flash' });
+    expect(requested).toBe('https://model.jsnu.edu.cn/v1/chat/completions');
+    expect(JSON.parse(requestBody)).toMatchObject({ model: 'deepseek-v4-flash' });
+  });
 });

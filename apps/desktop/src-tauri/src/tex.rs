@@ -13,6 +13,10 @@ pub struct CompileResult {
     pub ok: bool,
     pub pdf_base64: Option<String>,
     pub log: String,
+    #[serde(skip_serializing)]
+    pub(crate) sync_tex: Option<Vec<u8>>,
+    #[serde(skip_serializing)]
+    pub(crate) job: Option<String>,
 }
 fn safe_file(name: &str) -> bool {
     !name.is_empty()
@@ -36,7 +40,7 @@ pub fn project_file(name: &str) -> bool {
     ]
     .contains(&ext.as_str())
 }
-fn executable_path(name: &str) -> PathBuf {
+pub(crate) fn executable_path(name: &str) -> PathBuf {
     let filename = if cfg!(windows) {
         format!("{name}.exe")
     } else {
@@ -183,6 +187,7 @@ pub fn compile_project(
     let job_arg = format!("-jobname={job}");
     let engine_args = [
         "-no-shell-escape",
+        "-synctex=1",
         "-interaction=nonstopmode",
         "-halt-on-error",
         job_arg.as_str(),
@@ -199,6 +204,7 @@ pub fn compile_project(
             "-interaction=nonstopmode",
             "-halt-on-error",
             "-no-shell-escape",
+            "-synctex=1",
             job_arg.as_str(),
             entry_arg.as_str(),
         ];
@@ -215,10 +221,13 @@ pub fn compile_project(
         run(temp.path(), &engine, &engine_args)?
     };
     let bytes = fs::read(temp.path().join(format!("{job}.pdf"))).map_err(|e| e.to_string())?;
+    let sync_tex = fs::read(temp.path().join(format!("{job}.synctex.gz"))).ok();
     Ok(CompileResult {
         ok: true,
         pdf_base64: Some(STANDARD.encode(bytes)),
         log,
+        sync_tex,
+        job: Some(job),
     })
 }
 #[tauri::command]
@@ -247,6 +256,8 @@ pub async fn compile_latex(
                 Err(e) => e.to_string(),
                 _ => unreachable!(),
             },
+            sync_tex: None,
+            job: None,
         },
     }
 }

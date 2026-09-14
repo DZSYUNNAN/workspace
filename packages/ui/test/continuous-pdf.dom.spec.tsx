@@ -33,17 +33,18 @@ describe('ContinuousPdf', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('renders every page in one scrolling document and reports text selections', async () => {
-    const selected = vi.fn();
+    const selected = vi.fn(); const located = vi.fn();
     const element = document.createElement('div');
     document.body.append(element);
     const root = createRoot(element);
-    await act(async () => { root.render(<ContinuousPdf bytes={new Uint8Array([1])} scale={1} onTextSelect={selected} />); });
+    await act(async () => { root.render(<ContinuousPdf bytes={new Uint8Array([1])} scale={1} onTextSelect={selected} onPointDoubleClick={located} horizontalPosition={50} />); });
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(element.querySelectorAll('[data-pdf-page]')).toHaveLength(3);
     await vi.waitFor(() => expect(renderPage).toHaveBeenCalledTimes(3));
 
     const host = element.querySelector<HTMLElement>('[data-pdf-page="2"]')!;
     const span = document.createElement('span');
+    span.textContent = 'selected text';
     host.querySelector('.textLayer')!.append(span);
     vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ left: 10, top: 20, right: 110, bottom: 170, width: 100, height: 150, x: 10, y: 20, toJSON: () => ({}) });
     vi.spyOn(window, 'getSelection').mockReturnValue({
@@ -55,6 +56,9 @@ describe('ContinuousPdf', () => {
     } as unknown as Selection);
     await act(async () => { host.querySelector<HTMLElement>('.textLayer')!.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); });
     expect(selected).toHaveBeenCalledWith({ page: 2, text: 'selected text', rects: [{ x: 0.1, y: 0.1, w: 0.5, h: 0.1 }] });
+    vi.spyOn(span, 'getBoundingClientRect').mockReturnValue({ left: 20, top: 35, right: 70, bottom: 50, width: 50, height: 15, x: 20, y: 35, toJSON: () => ({}) });
+    await act(async () => { span.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 25, clientY: 40 })); });
+    expect(located).toHaveBeenCalledWith({ page: 2, x: 15, y: 20, word: 'selected' });
     await act(async () => root.unmount());
     element.remove();
   });

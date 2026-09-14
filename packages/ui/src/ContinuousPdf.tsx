@@ -4,6 +4,7 @@ import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 export interface PdfRect { x: number; y: number; w: number; h: number }
 export interface PdfHighlight { id: string; page: number; rects: PdfRect[]; color: string; title?: string }
 export interface PdfTextSelection { page: number; text: string; rects: PdfRect[] }
+export interface PdfPoint { page: number; x: number; y: number; word?: string }
 
 export interface PdfScrollRequest { page: number; nonce: number }
 
@@ -15,6 +16,9 @@ interface ContinuousPdfProps {
   onDocumentLoad?: (document: PDFDocumentProxy) => void;
   onPageChange?: (page: number) => void;
   onTextSelect?: (selection: PdfTextSelection) => void;
+  onPointDoubleClick?: (point: PdfPoint) => void;
+  horizontalPosition?: number;
+  onHorizontalPositionChange?: (position: number) => void;
   ariaLabel?: string;
 }
 
@@ -25,6 +29,7 @@ function PdfPage({
   root,
   highlights,
   onTextSelect,
+  onPointDoubleClick,
 }: {
   document: PDFDocumentProxy;
   pageNumber: number;
@@ -32,6 +37,7 @@ function PdfPage({
   root: HTMLDivElement | null;
   highlights: PdfHighlight[];
   onTextSelect?: (selection: PdfTextSelection) => void;
+  onPointDoubleClick?: (point: PdfPoint) => void;
 }): React.ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -141,6 +147,27 @@ function PdfPage({
     if (rects.length > 0) onTextSelect({ page: pageNumber, text, rects });
   };
 
+  const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>): void => {
+    if (!onPointDoubleClick || !hostRef.current) return;
+    const rect = hostRef.current.getBoundingClientRect();
+    const target = event.target as HTMLElement;
+    const span = target.closest<HTMLElement>('.textLayer span');
+    const spanText = span?.textContent ?? '';
+    let word: string | undefined;
+    if (span && spanText) {
+      const spanRect = span.getBoundingClientRect();
+      const index = Math.floor(Math.max(0, Math.min(0.999, (event.clientX - spanRect.left) / Math.max(1, spanRect.width))) * spanText.length);
+      word = [...spanText.matchAll(/[\p{L}\p{N}_-]+/gu)].find((match) => (match.index ?? 0) <= index && (match.index ?? 0) + match[0].length >= index)?.[0]
+        ?? spanText.trim().split(/\s+/)[0];
+    }
+    onPointDoubleClick({
+      page: pageNumber,
+      x: Math.max(0, event.clientX - rect.left) / scale,
+      y: Math.max(0, event.clientY - rect.top) / scale,
+      ...(word ? { word } : {}),
+    });
+  };
+
   return (
     <div
       ref={hostRef}
@@ -148,6 +175,7 @@ function PdfPage({
       data-pdf-page={pageNumber}
       aria-label={`PDF 第 ${pageNumber} 页`}
       style={{ width: size.width, height: size.height }}
+      onDoubleClick={handleDoubleClick}
     >
       <canvas ref={canvasRef} />
       <div ref={textLayerRef} className="textLayer" onMouseUp={handleSelection} />
@@ -179,6 +207,9 @@ export function ContinuousPdf({
   onDocumentLoad,
   onPageChange,
   onTextSelect,
+  onPointDoubleClick,
+  horizontalPosition,
+  onHorizontalPositionChange,
   ariaLabel = '连续 PDF 阅读区',
 }: ContinuousPdfProps): React.ReactElement {
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
@@ -222,7 +253,19 @@ export function ContinuousPdf({
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
   }, []);
 
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || horizontalPosition === undefined) return;
+    const max = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+    const next = max * Math.max(0, Math.min(100, horizontalPosition)) / 100;
+    if (Math.abs(scroller.scrollLeft - next) > 1) scroller.scrollLeft = next;
+  }, [horizontalPosition, document, scale]);
+
   const trackCurrentPage = (): void => {
+    if (scrollerRef.current && onHorizontalPositionChange) {
+      const max = Math.max(0, scrollerRef.current.scrollWidth - scrollerRef.current.clientWidth);
+      onHorizontalPositionChange(max ? scrollerRef.current.scrollLeft / max * 100 : 0);
+    }
     if (!onPageChange || !scrollerRef.current || frameRef.current !== null) return;
     frameRef.current = window.requestAnimationFrame(() => {
       frameRef.current = null;
@@ -257,6 +300,7 @@ export function ContinuousPdf({
             root={scrollerRef.current}
             highlights={highlights.filter((highlight) => highlight.page === pageNumber)}
             onTextSelect={onTextSelect}
+            onPointDoubleClick={onPointDoubleClick}
           />
         );
       })}

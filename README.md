@@ -1,6 +1,6 @@
 # Modular Personal Workspace (MPW)
 
-## 稳定可用版 0.6.2
+## 稳定可用版 0.7.0
 
 Windows 安装包与 Web 静态资源由 `npm run desktop:build` 及 `npm run build` 生成。
 日常使用与迁移说明见 [docs/STABLE-GUIDE.md](docs/STABLE-GUIDE.md)，验收记录见 [docs/STABILIZATION.md](docs/STABILIZATION.md)。

@@ -6,6 +6,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::PathBuf,
+    process::{Command, Stdio},
     sync::{Arc, Mutex},
 };
 use tauri::State;
@@ -16,6 +17,20 @@ pub struct LocalFiles(Arc<Mutex<HashMap<String, Selected>>>);
 struct Selected {
     path: PathBuf,
     backed_up: bool,
+    sync: Option<SyncBundle>,
+}
+struct SyncBundle {
+    pdf: Vec<u8>,
+    synctex: Vec<u8>,
+    job: String,
+    entry: String,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncLocation {
+    line: usize,
+    column: usize,
+    source: String,
 }
 #[derive(Serialize)]
 pub struct Opened {
@@ -67,12 +82,101 @@ impl LocalFiles {
         }
         let root = path.parent().ok_or("工程目录无效")?;
         let files = crate::tex_dependencies::collect(root, &path, &source)?;
-        crate::tex::compile_project(
+        let entry = path.file_name().unwrap().to_string_lossy().into_owned();
+        let mut result = crate::tex::compile_project(source, engine, entry.clone(), files)?;
+        let bundle = if let (Some(pdf), Some(synctex), Some(job)) = (
+            result
+                .pdf_base64
+                .as_ref()
+                .and_then(|value| STANDARD.decode(value).ok()),
+            result.sync_tex.take(),
+            result.job.take(),
+        ) {
+            Some(SyncBundle {
+                pdf,
+                synctex,
+                job,
+                entry,
+            })
+        } else {
+            None
+        };
+        let mut selected = self.0.lock().map_err(|e| e.to_string())?;
+        if let Some(file) = selected.get_mut(id) {
+            file.sync = bundle;
+        }
+        Ok(result)
+    }
+    fn sync(&self, id: &str, page: u32, x: f64, y: f64) -> Result<SyncLocation, String> {
+        if page == 0
+            || !x.is_finite()
+            || !y.is_finite()
+            || x < 0.0
+            || y < 0.0
+            || x > 20_000.0
+            || y > 20_000.0
+        {
+            return Err("PDF 定位坐标无效".into());
+        }
+        let (pdf, synctex, job, entry) = {
+            let selected = self.0.lock().map_err(|e| e.to_string())?;
+            let bundle = selected
+                .get(id)
+                .ok_or("文件未获授权，请重新选择")?
+                .sync
+                .as_ref()
+                .ok_or("当前 PDF 没有 SyncTeX 数据，请先保存并编译")?;
+            (
+                bundle.pdf.clone(),
+                bundle.synctex.clone(),
+                bundle.job.clone(),
+                bundle.entry.clone(),
+            )
+        };
+        let temp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        fs::write(temp.path().join(format!("{job}.pdf")), pdf).map_err(|e| e.to_string())?;
+        fs::write(temp.path().join(format!("{job}.synctex.gz")), synctex)
+            .map_err(|e| e.to_string())?;
+        let query = format!("{page}:{x:.2}:{y:.2}:{job}.pdf");
+        let mut command = Command::new(crate::tex::executable_path("synctex"));
+        command
+            .current_dir(temp.path())
+            .args(["edit", "-o", &query])
+            .stdin(Stdio::null());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        let output = command
+            .output()
+            .map_err(|e| format!("启动 SyncTeX 失败：{e}。请确认 TeX Live 或 MiKTeX 已安装。"))?;
+        if !output.status.success() {
+            return Err("SyncTeX 未找到对应源码位置".into());
+        }
+        let text = String::from_utf8_lossy(&output.stdout);
+        let value = |name: &str| {
+            text.lines()
+                .find_map(|line| line.strip_prefix(&format!("{name}:")))
+                .map(str::trim)
+        };
+        let line = value("Line")
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|v| *v > 0)
+            .ok_or("SyncTeX 未返回有效行号")?;
+        let column = value("Column")
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        let input = value("Input").unwrap_or(&entry);
+        let source = PathBuf::from(input)
+            .file_name()
+            .map(|v| v.to_string_lossy().into_owned())
+            .unwrap_or(entry);
+        Ok(SyncLocation {
+            line,
+            column,
             source,
-            engine,
-            path.file_name().unwrap().to_string_lossy().into(),
-            files,
-        )
+        })
     }
     fn select(&self, path: PathBuf) -> Result<Opened, String> {
         let path = path.canonicalize().map_err(|e| e.to_string())?;
@@ -94,6 +198,7 @@ impl LocalFiles {
         selected.entry(id.clone()).or_insert(Selected {
             path,
             backed_up: false,
+            sync: None,
         });
         drop(selected);
         self.snapshot(&id)
@@ -184,6 +289,19 @@ pub async fn local_file_compile(
         .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+pub async fn local_file_synctex(
+    state: State<'_, LocalFiles>,
+    id: String,
+    page: u32,
+    x: f64,
+    y: f64,
+) -> Result<SyncLocation, String> {
+    let files = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || files.sync(&id, page, x, y))
+        .await
+        .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 pub async fn local_file_open(
     state: State<'_, LocalFiles>,
     window: tauri::Window,
@@ -249,6 +367,23 @@ mod tests {
             .contains("已改变"));
     }
     #[test]
+    fn synctex_requires_a_selected_compiled_pdf_and_valid_coordinates() {
+        let files = LocalFiles::default();
+        assert!(files.sync("missing", 1, 10.0, 10.0).is_err());
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("paper.tex");
+        fs::write(&path, "source").unwrap();
+        let opened = files.select(path).unwrap();
+        assert!(files
+            .sync(&opened.id, 0, 10.0, 10.0)
+            .unwrap_err()
+            .contains("坐标"));
+        assert!(files
+            .sync(&opened.id, 1, 10.0, 10.0)
+            .unwrap_err()
+            .contains("请先保存并编译"));
+    }
+    #[test]
     #[ignore = "requires installed XeLaTeX and BibTeX"]
     fn compiles_selected_local_project_with_image_class_and_bibliography() {
         let dir = tempfile::tempdir().unwrap();
@@ -300,6 +435,9 @@ mod tests {
         assert!(pdf.starts_with(b"%PDF-"));
         assert!(pdf.len() > 1000);
         assert!(!result.log.contains("undefined references"));
+        let location = files.sync(&opened.id, 1, 100.0, 100.0).unwrap();
+        assert!(location.line > 0);
+        assert!(location.source.ends_with("tex"));
         assert_eq!(fs::read_to_string(path).unwrap(), source);
         assert!(!dir.path().join("modudesk.aux").exists());
         if let Ok(path) = std::env::var("MODUDESK_TEST_OUTPUT") {

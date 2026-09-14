@@ -42,4 +42,12 @@ describe('local sync lifecycle', () => {
     expect(new TextDecoder().decode(copy)).toBe('draft'); expect(f.stored()).toBe('external');
     expect(f.manager.sessions).toHaveLength(0); expect(f.manager.unsaved).toBe(false);
   });
+  it('routes SyncTeX coordinates only through an authorized desktop adapter', async () => {
+    const f = fixture(); const locate = vi.fn().mockResolvedValue({ line: 12, column: 4, source: 'paper.tex' });
+    f.adapter.open = async () => ({ id: 'selected', name: 'paper.tex', path: 'paper.tex', bytes: bytes('source'), stamp: 'source' });
+    f.adapter.synctex = locate;
+    const session = (await f.manager.open())!;
+    await expect(session.synctex(2, 72.5, 110)).resolves.toEqual({ line: 12, column: 4, source: 'paper.tex' });
+    expect(locate).toHaveBeenCalledWith('selected', 2, 72.5, 110);
+  });
 });

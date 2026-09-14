@@ -103,7 +103,9 @@ export const openAiProvider: AiProviderAdapter = {
   defaultBaseUrl: 'https://api.openai.com/v1',
   requiresKey: true,
   async complete(p) {
-    const data = (await (p.requestJson ?? fetchJson)(`${p.baseUrl ?? this.defaultBaseUrl}/chat/completions`, {
+    const root = p.baseUrl ?? this.defaultBaseUrl ?? '';
+    const endpoint = root.endsWith('/chat/completions') ? root : `${root.replace(/\/+$/, '')}/chat/completions`;
+    const data = (await (p.requestJson ?? fetchJson)(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${p.apiKey ?? ''}` },
       body: JSON.stringify({
@@ -123,6 +125,15 @@ export const openAiProvider: AiProviderAdapter = {
       usage: { promptTokens: data.usage?.prompt_tokens, completionTokens: data.usage?.completion_tokens },
     };
   },
+};
+
+export const deepSeekV4FlashProvider: AiProviderAdapter = {
+  ...openAiProvider,
+  id: 'deepseek-v4-flash',
+  label: 'DeepSeek-V4-Flash（江苏师大）',
+  defaultModel: 'deepseek-v4-flash',
+  defaultBaseUrl: 'https://model.jsnu.edu.cn/v1/chat/completions',
+  requiresKey: true,
 };
 
 export const openAiCompatibleProvider: AiProviderAdapter = {
@@ -216,6 +227,7 @@ export const BUILTIN_AI_PROVIDERS: AiProviderAdapter[] = [
   demoProvider,
   openAiProvider,
   openAiCompatibleProvider,
+  deepSeekV4FlashProvider,
   anthropicProvider,
   googleProvider,
   ollamaProvider,

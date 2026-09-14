@@ -2,11 +2,13 @@ import { decodeDocument, type EditableDocument } from './documents';
 export interface LocalFile { id: string; name: string; path: string; bytes: Uint8Array; stamp: string }
 export type TexEngine = 'xelatex' | 'lualatex' | 'pdflatex';
 export interface LocalTexResult { ok: boolean; pdfBase64?: string | null; log: string }
+export interface LocalTexLocation { line: number; column: number; source: string }
 export interface LocalFileAdapter {
   open(): Promise<LocalFile | null>;
   read(id: string): Promise<LocalFile>;
   write(id: string, bytes: Uint8Array, expected: string): Promise<string>;
   compile?(id: string, source: string, engine: TexEngine, expected: string): Promise<LocalTexResult>;
+  synctex?(id: string, page: number, x: number, y: number): Promise<LocalTexLocation>;
 }
 export class LocalDocumentSession {
   codec: EditableDocument;
@@ -56,6 +58,10 @@ export class LocalDocumentSession {
     if (!this.adapter.compile) throw new Error('本地 TeX 编译需要 Windows 桌面版和 TeX Live / MiKTeX');
     await this.flush();
     return this.adapter.compile(this.file.id, this.texts[0], engine, this.file.stamp);
+  }
+  async synctex(page: number, x: number, y: number): Promise<LocalTexLocation> {
+    if (!this.adapter.synctex) throw new Error('SyncTeX 反向定位需要 Windows 桌面版');
+    return this.adapter.synctex(this.file.id, page, x, y);
   }
   async stop(): Promise<void> { clearTimeout(this.timer); if (this.pending) await this.pending.catch(() => {}); clearTimeout(this.timer); }
 }

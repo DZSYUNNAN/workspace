@@ -1,6 +1,6 @@
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, process::Command, time::Duration};
 
 const MAX_REQUEST: usize = 2 * 1024 * 1024;
 const MAX_RESPONSE: usize = 8 * 1024 * 1024;
@@ -12,6 +12,8 @@ pub struct AiHttpRequest {
     method: String,
     headers: HashMap<String, String>,
     body: String,
+    network_mode: Option<String>,
+    proxy_url: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -19,6 +21,116 @@ pub struct AiHttpRequest {
 pub struct AiHttpResponse {
     status: u16,
     body: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum NetworkPath {
+    Direct,
+    Environment,
+    Proxy(String),
+}
+
+fn normalize_proxy(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let candidate = if raw.contains(';') {
+        raw.split(';')
+            .filter_map(|part| part.split_once('='))
+            .find(|(key, _)| key.trim().eq_ignore_ascii_case("https"))
+            .or_else(|| {
+                raw.split(';')
+                    .filter_map(|part| part.split_once('='))
+                    .find(|(key, _)| key.trim().eq_ignore_ascii_case("http"))
+            })
+            .map(|(_, value)| value.trim())
+            .unwrap_or(raw)
+    } else if let Some((key, value)) = raw.split_once('=') {
+        if key.eq_ignore_ascii_case("http") || key.eq_ignore_ascii_case("https") {
+            value.trim()
+        } else {
+            raw
+        }
+    } else {
+        raw
+    };
+    let url = if candidate.contains("://") {
+        candidate.to_string()
+    } else {
+        format!("http://{candidate}")
+    };
+    reqwest::Url::parse(&url)
+        .ok()
+        .filter(|value| matches!(value.scheme(), "http" | "https"))
+        .map(|_| url)
+}
+
+#[cfg(windows)]
+fn windows_proxy() -> Option<String> {
+    use std::os::windows::process::CommandExt;
+    let query = |value: &str| {
+        let mut command = Command::new("reg");
+        command
+            .args([
+                "query",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                "/v",
+                value,
+            ])
+            .creation_flags(0x08000000);
+        command
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+    };
+    let enabled = query("ProxyEnable")?;
+    if !enabled.to_ascii_lowercase().contains("0x1") {
+        return None;
+    }
+    let server = query("ProxyServer")?;
+    let raw = server
+        .lines()
+        .find(|line| line.contains("ProxyServer"))?
+        .split_whitespace()
+        .last()?;
+    normalize_proxy(raw)
+}
+#[cfg(not(windows))]
+fn windows_proxy() -> Option<String> {
+    None
+}
+
+fn network_paths(
+    mode: &str,
+    configured: Option<String>,
+    system: Option<String>,
+) -> Result<Vec<NetworkPath>, String> {
+    let configured = configured.as_deref().and_then(normalize_proxy);
+    let paths = match mode {
+        "direct" => vec![NetworkPath::Direct],
+        "env" => vec![NetworkPath::Environment],
+        "system" => system
+            .and_then(|value| normalize_proxy(&value))
+            .map(|value| vec![NetworkPath::Proxy(value)])
+            .ok_or("Windows 系统代理未启用")?,
+        "proxy" => configured
+            .map(|value| vec![NetworkPath::Proxy(value)])
+            .ok_or("请填写有效的 HTTP 代理地址")?,
+        _ => {
+            let mut values = vec![NetworkPath::Direct, NetworkPath::Environment];
+            if let Some(value) = system.and_then(|value| normalize_proxy(&value)) {
+                values.push(NetworkPath::Proxy(value));
+            }
+            if let Some(value) = configured {
+                values.push(NetworkPath::Proxy(value));
+            }
+            values.dedup();
+            values
+        }
+    };
+    Ok(paths)
 }
 
 #[tauri::command]
@@ -41,17 +153,49 @@ pub async fn ai_http_request(request: AiHttpRequest) -> Result<AiHttpResponse, S
             HeaderValue::from_str(&value).map_err(|_| "AI 请求包含无效请求头值".to_string())?;
         headers.insert(name, value);
     }
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(70))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let response = client
-        .post(url)
-        .headers(headers)
-        .body(request.body)
-        .send()
-        .await
-        .map_err(|e| format!("无法连接 AI 服务：{e}"))?;
+    let paths = network_paths(
+        request.network_mode.as_deref().unwrap_or("auto"),
+        request.proxy_url,
+        windows_proxy(),
+    )?;
+    let mut failures = Vec::new();
+    let mut response = None;
+    for path in paths {
+        let label = match &path {
+            NetworkPath::Direct => "direct",
+            NetworkPath::Environment => "environment",
+            NetworkPath::Proxy(_) => "proxy",
+        };
+        let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(25));
+        builder = match path {
+            NetworkPath::Direct => builder.no_proxy(),
+            NetworkPath::Environment => builder,
+            NetworkPath::Proxy(proxy) => builder
+                .no_proxy()
+                .proxy(reqwest::Proxy::all(&proxy).map_err(|_| "代理地址无效")?),
+        };
+        match builder
+            .build()
+            .map_err(|e| e.to_string())?
+            .post(url.clone())
+            .headers(headers.clone())
+            .body(request.body.clone())
+            .send()
+            .await
+        {
+            Ok(value) => {
+                response = Some(value);
+                break;
+            }
+            Err(error) => failures.push(format!("{label}: {error}")),
+        }
+    }
+    let response = response.ok_or_else(|| {
+        format!(
+            "无法连接 AI 服务（已尝试配置的网络路径）：{}",
+            failures.join("；")
+        )
+    })?;
     let status = response.status().as_u16();
     if response
         .content_length()
@@ -98,6 +242,8 @@ mod tests {
             method: "POST".into(),
             headers: HashMap::from([("content-type".into(), "application/json".into())]),
             body: "{}".into(),
+            network_mode: Some("direct".into()),
+            proxy_url: None,
         }))
         .unwrap();
         server.join().unwrap();
@@ -112,7 +258,35 @@ mod tests {
             method: "POST".into(),
             headers: HashMap::new(),
             body: "{}".into(),
+            network_mode: None,
+            proxy_url: None,
         }));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn builds_direct_environment_system_and_karing_fallbacks() {
+        assert_eq!(
+            normalize_proxy("127.0.0.1:3067").as_deref(),
+            Some("http://127.0.0.1:3067")
+        );
+        let paths = network_paths(
+            "auto",
+            Some("http://127.0.0.1:3067".into()),
+            Some("https=127.0.0.1:7890".into()),
+        )
+        .unwrap();
+        assert_eq!(
+            paths,
+            vec![
+                NetworkPath::Direct,
+                NetworkPath::Environment,
+                NetworkPath::Proxy("http://127.0.0.1:7890".into()),
+                NetworkPath::Proxy("http://127.0.0.1:3067".into())
+            ]
+        );
+        assert!(network_paths("proxy", None, None)
+            .unwrap_err()
+            .contains("代理地址"));
     }
 }

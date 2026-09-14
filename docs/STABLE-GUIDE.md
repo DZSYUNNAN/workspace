@@ -1,8 +1,8 @@
-# ModuDesk 0.6.2 使用与迁移
+# ModuDesk 0.7.0 使用与迁移
 
 ## 启动
 
-Windows：运行 `ModuDesk_0.6.2_x64-setup.exe` 安装。也可直接运行构建目录的 `modudesk.exe`。
+Windows：运行 `ModuDesk_0.7.0_x64-setup.exe` 安装。也可直接运行构建目录的 `modudesk.exe`。
 Web：在仓库根目录执行 `npm ci`、`npm run build`、`npm start`，打开 `http://localhost:8080`。
 启动器优先使用 `apps/web/dist`。端口占用时会停止并提示，不会自动换端口。
 
@@ -23,6 +23,14 @@ Web：在仓库根目录执行 `npm ci`、`npm run build`、`npm start`，打开
 状态栏“已保存到本机”表示当前数据库快照已完成持久化。“保存失败”时请点击重试，并保留当前窗口。正常关闭有保存保护；断电、强制结束进程发生在写入完成之前，仍可能丢失尚未确认的输入。
 
 ## 科研工作流程
+
+### 0.7.0 本地论文写作工作台
+
+在“写作”中选择“打开本地文档”，打开论文主文件 `paper.tex`。左侧编辑源码，点击“保存并编译”后右侧用 PDF.js 连续显示生成的 PDF；普通输入、自动保存和 AI 请求不会刷新 PDF。PDF 支持缩放、横向滑动和可拉伸分栏。双击 PDF 文本时，桌面端通过本次编译生成的 SyncTeX 数据定位到源码行和对应单词。
+
+论文 AI 输出区提供自由指令、中英互译、学术润色、审稿风险检查、结构解释和章节改写。AI 结果先进入输出区；只有点击“替换选区 / 插入光标”才会写入源码，写入后仍需手动编译。DeepSeek-V4-Flash 可在“设置 → AI 服务”选择，预设 endpoint 为 `https://model.jsnu.edu.cn/v1/chat/completions`，模型为 `deepseek-v4-flash`。API key 保存于系统凭据管理器，不进入数据库、备份或仓库。网络模式可选 direct、环境代理、Windows 系统代理或指定代理；自动模式按上述路径依次尝试，Karing 可填写 `http://127.0.0.1:3067`。
+
+本地编译继续按 `\input`、`\include`、图片、文献和模板引用收集依赖；同目录中的无关大文件和大量无关文档不会计入工程限制。SyncTeX 需要 TeX Live 或 MiKTeX 提供 `synctex` 命令。
 
 ### 0.6.2 邮件正文宽度稳定
 

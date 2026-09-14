@@ -14,6 +14,7 @@ export function createLocalDocuments(): LocalDocuments {
     read: async (id) => unpack(await invoke<NativeFile>('local_file_read', { id })),
     write: (id, bytes, expected) => invoke('local_file_write', { id, data: toBase64(bytes), expected }),
     compile: (id, source, engine, expected) => invoke('local_file_compile', { id, source, engine, expected }),
+    synctex: (id, page, x, y) => invoke('local_file_synctex', { id, page, x, y }),
   });
   const handles = new Map<string, FileHandle>(); const backedUp = new Set<string>();
   const adapter: LocalFileAdapter = {

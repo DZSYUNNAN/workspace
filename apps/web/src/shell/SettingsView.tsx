@@ -11,6 +11,8 @@ export function SettingsView(): React.ReactElement {
   const currentProvider = kernel.settings.get('ai.provider', 'demo');
   const [baseUrl, setBaseUrl] = useState(kernel.settings.get<string>(`ai.providers.${currentProvider}.baseUrl`, ''));
   const [model, setModel] = useState(kernel.settings.get<string>(`ai.providers.${currentProvider}.model`, ''));
+  const [networkMode, setNetworkMode] = useState(kernel.settings.get<string>(`ai.providers.${currentProvider}.networkMode`, 'auto'));
+  const [proxyUrl, setProxyUrl] = useState(kernel.settings.get<string>(`ai.providers.${currentProvider}.proxyUrl`, ''));
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [keySaved, setKeySaved] = useState<Record<string, boolean>>({});
   const [newWsName, setNewWsName] = useState('');
@@ -19,6 +21,8 @@ export function SettingsView(): React.ReactElement {
   useEffect(() => {
     setBaseUrl(kernel.settings.get<string>(`ai.providers.${currentProvider}.baseUrl`, ''));
     setModel(kernel.settings.get<string>(`ai.providers.${currentProvider}.model`, ''));
+    setNetworkMode(kernel.settings.get<string>(`ai.providers.${currentProvider}.networkMode`, 'auto'));
+    setProxyUrl(kernel.settings.get<string>(`ai.providers.${currentProvider}.proxyUrl`, ''));
     setTestResult('');
   }, [currentProvider]);
   const workspaces = kernel.workspaces.list();
@@ -55,6 +59,19 @@ export function SettingsView(): React.ReactElement {
               {p.requiresKey && <Icon name="zap" size={11} />}
             </button>
           ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select className="input" aria-label="AI 网络模式" value={networkMode} onChange={(e) => setNetworkMode(e.target.value)}>
+            <option value="auto">自动：直连 → 环境 → Windows → 指定代理</option>
+            <option value="direct">仅直连</option><option value="env">仅环境代理</option>
+            <option value="system">仅 Windows 系统代理</option><option value="proxy">仅指定代理</option>
+          </select>
+          <input className="input" style={{ width: 280 }} placeholder="指定代理，例如 http://127.0.0.1:3067" value={proxyUrl} onChange={(e) => setProxyUrl(e.target.value)} />
+          <button className="btn" onClick={() => {
+            kernel.settings.set(`ai.providers.${currentProvider}.networkMode`, networkMode);
+            kernel.settings.set(`ai.providers.${currentProvider}.proxyUrl`, proxyUrl.trim() || undefined);
+            kernel.events.emit('notify', { message: 'AI 网络设置已保存', kind: 'success' }); refresh();
+          }}>保存网络设置</button>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-2)' }}>
           当前服务：<b>{providers.find((p) => p.id === currentProvider)?.label}</b> · 默认模型{' '}

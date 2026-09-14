@@ -34,7 +34,12 @@ export function detectDesktopShell(kernel: Kernel): void {
   if (!isTauri()) return;
   kernel.ai.setRequestTransport(async (url, init) => {
     const headers = Object.fromEntries(new Headers(init.headers).entries());
-    const response = await invoke<{ status: number; body: string }>('ai_http_request', { request: { url, method: init.method ?? 'POST', headers, body: typeof init.body === 'string' ? init.body : '' } });
+    const provider = kernel.settings.get('ai.provider', 'demo');
+    const networkMode = kernel.settings.get(`ai.providers.${provider}.networkMode`, 'auto');
+    const proxyUrl = kernel.settings.get(`ai.providers.${provider}.proxyUrl`, '');
+    const response = await invoke<{ status: number; body: string }>('ai_http_request', { request: {
+      url, method: init.method ?? 'POST', headers, body: typeof init.body === 'string' ? init.body : '', networkMode, proxyUrl,
+    } });
     if (response.status < 200 || response.status >= 300) {
       let detail = response.body.slice(0, 400);
       try { detail = (JSON.parse(response.body) as { error?: { message?: string }; message?: string }).error?.message ?? (JSON.parse(response.body) as { message?: string }).message ?? detail; } catch { /* keep response text */ }
