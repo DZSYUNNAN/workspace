@@ -20,7 +20,7 @@ import { RichEditor } from './RichEditor';
 import { LatexEditor } from './LatexEditor';
 import { downloadBlob, htmlToDocxBlob } from './docx';
 
-export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSelectedChange?: (id: string | null) => void }): React.ReactElement {
+export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSelectedChange?: (id: string | null) => void; onLocalSessionChange?: (session: LocalDocumentSession | null) => void; onLocalSelectionChange?: (text: string) => void }): React.ReactElement {
   const { ctx } = props;
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [activeId, selectActiveId] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
   const [activeLocal, setActiveLocal] = useState<LocalDocumentSession | null>(null);
   const [, redrawLocal] = useState(0);
   const [openingLocal, setOpeningLocal] = useState(false);
-  const setActiveId = (id: string | null): void => { setActiveLocal(null); selectActiveId(id); };
+  const setActiveId = (id: string | null): void => { setActiveLocal(null); props.onLocalSessionChange?.(null); props.onLocalSelectionChange?.(''); selectActiveId(id); };
   useEffect(() => {
     let dispose: (() => void) | undefined; let cancelled = false;
     void ctx.commands.execute('workspace.localDocuments').then((value) => {
@@ -37,10 +37,11 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
     }).catch(() => {});
     return () => { cancelled = true; dispose?.(); };
   }, [ctx]);
+  useEffect(() => () => { props.onLocalSessionChange?.(null); props.onLocalSelectionChange?.(''); }, []);
   const openLocal = async (): Promise<void> => {
     if (!local) { ctx.ui.notify('请使用更新后的完整工作台打开本地文档', 'warn'); return; }
     setOpeningLocal(true);
-    try { const session = await local.open(); if (session) { setActiveLocal(session); props.onSelectedChange?.(null); } }
+    try { const session = await local.open(); if (session) { setActiveLocal(session); props.onSelectedChange?.(null); props.onLocalSessionChange?.(session); props.onLocalSelectionChange?.(''); } }
     catch (e) { ctx.ui.notify(String(e instanceof Error ? e.message : e), 'error'); }
     finally { setOpeningLocal(false); }
   };
@@ -188,7 +189,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
         </div>
         <div className="list">
           <button className="list-row" disabled={openingLocal} onClick={() => void openLocal()}><Icon name="folder" size={13} />{openingLocal ? '正在打开…' : '选取本地文档'}</button>
-          {local?.sessions.map((s) => <button key={s.file.id} className={`list-row${activeLocal === s ? ' active' : ''}`} onClick={() => { setActiveLocal(s); props.onSelectedChange?.(null); }}>
+          {local?.sessions.map((s) => <button key={s.file.id} className={`list-row${activeLocal === s ? ' active' : ''}`} onClick={() => { setActiveLocal(s); props.onSelectedChange?.(null); props.onLocalSessionChange?.(s); props.onLocalSelectionChange?.(''); }}>
             <Icon name="file" size={13} /><span className="lr-title">{s.file.name}</span><span className="badge gray">{s.phase === 'saved' ? '本地' : s.phase === 'error' ? '同步失败' : '保存中'}</span>
           </button>)}
           {docs.map((d) => (
@@ -211,7 +212,7 @@ export function WritingView(props: { ctx: PluginContext; compact?: boolean; onSe
       <ResizeHandle onDelta={(delta) => ctx.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'writingListWidth', delta })} title="拖动调整写作文档列表宽度" />
 
       <div className="note-editor-wrap">
-        {activeLocal ? <LocalDocumentEditor key={activeLocal.file.id} ctx={ctx} session={activeLocal} onDetach={async () => { await local?.detach(activeLocal); setActiveLocal(null); }} /> : active ? (
+        {activeLocal ? <LocalDocumentEditor key={activeLocal.file.id} ctx={ctx} session={activeLocal} onSelectionChange={props.onLocalSelectionChange} onDetach={async () => { await local?.detach(activeLocal); setActiveLocal(null); props.onLocalSessionChange?.(null); props.onLocalSelectionChange?.(''); props.onSelectedChange?.(activeId); }} /> : active ? (
           <>
             <div className="widget-toolbar">
               <button className="btn sm" onClick={() => void ctx.commands.execute('mpw.references.citations').then((r) => setCitations(r as NonNullable<typeof citations>)).catch(() => ctx.ui.notify('请先启用文献插件', 'warn'))}>插入引用</button>

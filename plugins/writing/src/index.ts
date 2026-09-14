@@ -1,19 +1,22 @@
 import React from 'react';
 import { definePlugin, type PluginContext } from '@mpw/kernel';
-import { truncate } from '@mpw/shared';
+import { truncate, type LocalDocumentSession } from '@mpw/shared';
 import { listDocs, searchDocs } from './store';
 import { WritingView } from './WritingView';
+import { buildPaperActionPrompt, PAPER_AI_ACTIONS } from './paperAi';
 
 let ctxRef: PluginContext | null = null;
 let activeDocId: string | null = null;
+let activeLocalSession: LocalDocumentSession | null = null;
+let activeLocalSelection = '';
 
 export default definePlugin({
   manifest: {
     id: 'mpw.writing',
     name: '写作',
-    version: '0.7.0',
+    version: '0.7.1',
     author: 'ModuDesk',
-    description: '富文本与本地论文写作：paper.tex/PDF 双栏、SyncTeX 反向定位、AI 翻译润色与审稿检查。',
+    description: '富文本与本地论文写作：paper.tex/PDF 双栏、SyncTeX 反向定位，并接入统一右侧 AI 助手。',
     icon: 'pen',
     minCoreVersion: '^0.1.0',
     permissions: ['storage', 'ai:invoke', 'native'],
@@ -55,7 +58,18 @@ export default definePlugin({
           id: 'current',
           label: '当前文档',
           getContext: async () => {
-            if (!ctxRef || !activeDocId) return null;
+            if (!ctxRef) return null;
+            if (activeLocalSession) {
+              const isTex = activeLocalSession.file.name.toLowerCase().endsWith('.tex');
+              return {
+                id: 'current',
+                label: `${isTex ? '本地 TeX' : '本地文档'}: ${activeLocalSession.file.name}`,
+                kind: 'text' as const,
+                content: activeLocalSession.texts.join('\n\n').slice(0, 45_000),
+                source: 'mpw.writing',
+              };
+            }
+            if (!activeDocId) return null;
             const docs = await listDocs(ctxRef);
             const d = docs.find((x) => x.id === activeDocId);
             if (!d) return null;
@@ -71,7 +85,26 @@ export default definePlugin({
             };
           },
         },
+        {
+          id: 'selection',
+          label: 'TeX 当前选区',
+          getContext: async () => activeLocalSession && activeLocalSelection.trim() ? {
+            id: 'selection',
+            label: `TeX 选区: ${activeLocalSession.file.name}`,
+            kind: 'selection' as const,
+            content: activeLocalSelection.slice(0, 16_000),
+            source: 'mpw.writing',
+          } : null,
+        },
       ],
+      aiActions: PAPER_AI_ACTIONS.map((action) => ({
+        id: action.id,
+        label: action.label,
+        icon: action.icon,
+        appliesTo: ['text', 'selection'],
+        insert: action.id === 'review' || action.id === 'structure' ? 'none' as const : 'replace' as const,
+        prompt: (selection: string, contextText = '') => buildPaperActionPrompt(action.id, selection, contextText),
+      })),
     },
   },
 
@@ -80,8 +113,13 @@ export default definePlugin({
     const { initSchema } = await import('./store');
     await initSchema(ctx);
 
-    ctx.ui.registerWidget('editor', () => React.createElement(WritingView, { ctx, compact: true, onSelectedChange: (id: string | null) => { activeDocId = id; } }));
-    ctx.ui.registerRoute('main', () => React.createElement(WritingView, { ctx, onSelectedChange: (id: string | null) => { activeDocId = id; } }));
+    const selectionProps = {
+      onSelectedChange: (id: string | null) => { activeDocId = id; if (id) { activeLocalSession = null; activeLocalSelection = ''; } },
+      onLocalSessionChange: (session: LocalDocumentSession | null) => { activeLocalSession = session; if (session) activeDocId = null; },
+      onLocalSelectionChange: (text: string) => { activeLocalSelection = text; },
+    };
+    ctx.ui.registerWidget('editor', () => React.createElement(WritingView, { ctx, compact: true, ...selectionProps }));
+    ctx.ui.registerRoute('main', () => React.createElement(WritingView, { ctx, ...selectionProps }));
 
     ctx.commands.register('mpw.writing.newRichDoc', async () => {
       const { createDoc } = await import('./store');
@@ -117,5 +155,7 @@ export default definePlugin({
   async deactivate() {
     ctxRef = null;
     activeDocId = null;
+    activeLocalSession = null;
+    activeLocalSelection = '';
   },
 });

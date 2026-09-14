@@ -7,6 +7,7 @@ interface ChatMsg {
   role: 'user' | 'assistant';
   text: string;
   provider?: string;
+  applyTarget?: string;
 }
 
 interface QuickAction {
@@ -19,7 +20,7 @@ interface QuickAction {
 
 /** 全局 AI 侧栏 — 问候语 + 快捷指令 + 上下文许可芯片(ModuDesk 设计稿)。 */
 export function AiPanel(): React.ReactElement {
-  const { kernel, aiPanelOpen, refresh, navigate } = useApp();
+  const { kernel, aiPanelOpen, refresh, navigate, route } = useApp();
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,6 +46,7 @@ export function AiPanel(): React.ReactElement {
   if (!aiPanelOpen) return <></>;
 
   const providers = kernel.context.list();
+  const activePlugin = route.type === 'pluginRoute' ? route.key.split('/')[0] : null;
   const providerLabel =
     kernel.ai.listProviders().find((p) => p.id === kernel.settings.get('ai.provider', 'demo'))?.label ?? '离线演示';
 
@@ -60,21 +62,24 @@ export function AiPanel(): React.ReactElement {
 
   const activeChunks = async (): Promise<ContextChunk[]> => {
     const chunks = await kernel.context.getActiveContext();
-    return chunks.filter((c) => consent[`${c.source}/${c.id}`] !== false);
+    const allowed = chunks.filter((c) => consent[`${c.source}/${c.id}`] !== false);
+    return activePlugin ? allowed.filter((c) => c.source === activePlugin) : allowed;
   };
 
-  const run = async (prompt: string, label: string): Promise<void> => {
+  const run = async (prompt: string, label: string, preparedChunks?: ContextChunk[]): Promise<void> => {
     setMsgs((m) => [...m, { role: 'user', text: label }]);
     setBusy(true);
     try {
-      const chunks = await activeChunks();
+      const chunks = preparedChunks ?? await activeChunks();
       const result: AiResult = await kernel.ai.run(prompt, { context: chunks });
+      const localTex = chunks.find((chunk) => chunk.source === 'mpw.writing' && chunk.label.startsWith('本地 TeX:'));
       setMsgs((m) => [
         ...m,
         {
           role: 'assistant',
           text: result.text,
           provider: `${result.provider}${chunks.length > 0 ? ` · ${chunks.length} 个上下文来源` : ''}`,
+          applyTarget: localTex?.label,
         },
       ]);
     } catch (err) {
@@ -119,6 +124,10 @@ export function AiPanel(): React.ReactElement {
     },
   ];
 
+  const contributedActions = activePlugin
+    ? kernel.enabledAiActions().filter((action) => action.pluginId === activePlugin)
+    : [];
+
   const quickAvailable = async (a: QuickAction): Promise<boolean> => {
     if (!a.source) return true;
     const chunks = await activeChunks();
@@ -144,11 +153,31 @@ export function AiPanel(): React.ReactElement {
       </div>
       {showCtx && providers.length > 0 && (
         <div className="ai-chips" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+          {activePlugin && <span className="badge gray">当前模块：{g_label(activePlugin)}</span>}
           {providers.map((p) => (
-            <span key={p.key} className={`chip${consent[p.key] ? ' on' : ''}`} onClick={() => toggleProvider(p.key)} title="切换是否允许 AI 读取该上下文">
-              <Icon name={consent[p.key] ? 'check' : 'x'} size={11} />
+            <span key={p.key} className={`chip${consent[p.key] !== false ? ' on' : ''}`} onClick={() => toggleProvider(p.key)} title="切换是否允许 AI 读取该上下文">
+              <Icon name={consent[p.key] !== false ? 'check' : 'x'} size={11} />
               {p.label}
             </span>
+          ))}
+        </div>
+      )}
+      {contributedActions.length > 0 && (
+        <div className="ai-module-actions" aria-label={`${g_label(activePlugin ?? '')} AI 功能`}>
+          {contributedActions.map((action) => (
+            <button key={action.globalId} className="quick-btn" disabled={busy} onClick={() => {
+              void (async () => {
+                const chunks = await activeChunks();
+                const own = chunks.filter((chunk) => chunk.source === action.pluginId);
+                if (own.length === 0) {
+                  setMsgs((m) => [...m, { role: 'assistant', text: `⚠ 请先在「${g_label(action.pluginId)}」模块打开内容，并确认上方上下文开关已启用。` }]);
+                  return;
+                }
+                const selection = own.filter((chunk) => chunk.kind === 'selection').map((chunk) => chunk.content).join('\n\n');
+                const contextText = own.filter((chunk) => chunk.kind !== 'selection').map((chunk) => chunk.content).join('\n\n');
+                await run(action.prompt(selection, contextText), action.label, chunks);
+              })();
+            }}><Icon name={action.icon ?? 'sparkles'} size={13} /> {action.label}</button>
           ))}
         </div>
       )}
@@ -156,9 +185,9 @@ export function AiPanel(): React.ReactElement {
         {msgs.length === 0 && (
           <div className="ai-greet">
             <div className="ai-greet-title">{greeting},有什么可以帮你的吗?</div>
-            <div className="ai-greet-sub">在获得你的许可后,助手可以读取当前打开的论文、笔记、邮件与文档作为上下文。</div>
+            <div className="ai-greet-sub">助手会读取当前模块中打开的论文、笔记、邮件或文档；可在上方关闭任一上下文来源。</div>
             <div className="ai-quick">
-              {QUICK.map((a) => (
+              {(contributedActions.length === 0 ? QUICK : QUICK.filter((action) => action.source === activePlugin)).map((a) => (
                 <button
                   key={a.label}
                   className="quick-btn"
@@ -170,7 +199,7 @@ export function AiPanel(): React.ReactElement {
                         setMsgs((m) => [...m, { role: 'assistant', text: `⚠ 该指令需要「${a.source}」插件的上下文。请先打开相关论文/邮件/文档,并确认上方上下文开关已启用。` }]);
                         return;
                       }
-                      await run(a.buildPrompt(chunks), a.label);
+                      await run(a.buildPrompt(chunks), a.label, chunks);
                     })();
                   }}
                 >
@@ -208,6 +237,11 @@ export function AiPanel(): React.ReactElement {
           <div key={i} className={`ai-msg ${m.role}`}>
             {m.text}
             {m.provider && <span className="ai-src">{m.provider}</span>}
+            {m.role === 'assistant' && m.applyTarget && (
+              <button className="btn sm ai-apply" title="写入源码并自动保存；不会自动编译 PDF" onClick={() => kernel.events.emit('writing:apply-ai-output', { text: m.text, targetLabel: m.applyTarget })}>
+                写入当前 TeX 选区
+              </button>
+            )}
           </div>
         ))}
         {busy && <div className="ai-msg assistant">生成中…</div>}

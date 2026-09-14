@@ -9,7 +9,7 @@ export default definePlugin({
   manifest: {
     id: 'mpw.email',
     name: '邮箱',
-    version: '0.3.1',
+    version: '0.3.2',
     author: 'ModuDesk',
     description: '多账户邮箱：桌面 IMAP/SMTP 加密直连、连接测试、收件缓存与文本发送，支持账户设置和删除；内置离线演示。',
     icon: 'mail',
@@ -61,6 +61,11 @@ export default definePlugin({
             };
           },
         },
+      ],
+      aiActions: [
+        { id: 'summarize', label: '总结邮件', icon: 'mail', insert: 'none', prompt: (_selection, context = '') => `请用中文概括这封邮件的核心信息、发件人诉求和背景。\n\n${context}` },
+        { id: 'actions', label: '提取待办和期限', icon: 'check', insert: 'none', prompt: (_selection, context = '') => `分析这封邮件，列出需要采取的行动、负责人、明确或隐含的截止时间；没有的信息请标明未提及。\n\n${context}` },
+        { id: 'reply', label: '起草回复', icon: 'send', insert: 'none', prompt: (_selection, context = '') => `根据这封邮件起草一封简洁、礼貌、可直接修改的回复。不要虚构事实，缺少的信息用方括号占位。\n\n${context}` },
       ],
     },
   },

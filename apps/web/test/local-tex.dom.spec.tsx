@@ -28,26 +28,28 @@ describe('local TeX editor compile flow', () => {
     await act(async () => root.unmount());
   });
   it('builds output and rewrite prompts without compiling or changing the source', async () => {
-    const { buildPaperAiRequest } = await import('../../../plugins/writing/src/LocalDocumentEditor');
+    const { buildPaperAiRequest } = await import('../../../plugins/writing/src/paperAi');
     expect(buildPaperAiRequest('zh-en', '中文段落', '', 'source').system).toContain('翻译');
     expect(buildPaperAiRequest('review', '重点检查证据', '', '\\section{Result}').prompt).toContain('当前 paper.tex');
     expect(buildPaperAiRequest('rewrite', '改写摘要', '\\begin{abstract}x', 'source').prompt).toContain('待改写内容');
   });
-  it('sending an AI task leaves the compiled PDF and compiler untouched', async () => {
+  it('uses the unified assistant write-back without refreshing the compiled PDF', async () => {
     const compile = vi.fn().mockResolvedValue({ ok: true, pdfBase64: btoa('%PDF-before-ai'), log: 'ok' });
     const manager = new LocalDocuments({
       open: async () => ({ id: 'tex-ai', name: 'paper.tex', path: 'paper.tex', stamp: 'source', bytes: new TextEncoder().encode('source') }),
       read: vi.fn(), write: vi.fn().mockResolvedValue('source'), compile,
     });
-    const ctx = { ai: { run: vi.fn().mockResolvedValue({ text: 'polished output', provider: 'demo' }) }, commands: { execute: vi.fn().mockResolvedValue(null) }, events: { emit: vi.fn() } };
+    let applyOutput: ((payload: unknown) => void) | undefined;
+    const ctx = { commands: { execute: vi.fn().mockResolvedValue(null) }, events: { emit: vi.fn(), on: vi.fn((type: string, handler: (payload: unknown) => void) => { if (type === 'writing:apply-ai-output') applyOutput = handler; return () => {}; }) } };
     const session = (await manager.open())!; const el = document.createElement('div'); const root = createRoot(el);
     await act(async () => root.render(<LocalDocumentEditor session={session} ctx={ctx as never} onDetach={async () => {}} />));
     await act(async () => [...el.querySelectorAll('button')].find((button) => button.textContent === '保存并编译')!.click());
     expect(el.querySelector('[aria-label="PDF test preview"]')?.textContent).toBe('%PDF-before-ai');
-    await act(async () => [...el.querySelectorAll('button')].find((button) => button.textContent === '发送到 AI')!.click());
-    expect(ctx.ai.run).toHaveBeenCalledTimes(1); expect(compile).toHaveBeenCalledTimes(1);
+    expect(el.textContent).not.toContain('发送到 AI');
+    await act(async () => applyOutput?.({ text: 'polished output', targetLabel: '本地 TeX: paper.tex' }));
+    expect(compile).toHaveBeenCalledTimes(1);
     expect(el.querySelector('[aria-label="PDF test preview"]')?.textContent).toBe('%PDF-before-ai');
-    expect(el.textContent).toContain('polished output');
+    expect(session.texts[0]).toContain('polished output');
     await act(async () => root.unmount());
   });
   it('does not invoke the compiler if syncing the source fails', async () => {

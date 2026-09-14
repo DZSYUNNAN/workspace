@@ -2,7 +2,7 @@ import React from 'react';
 import { definePlugin, type PluginContext } from '@mpw/kernel';
 import { truncate } from '@mpw/shared';
 import { TasksView } from './TasksView';
-import { initSchema, searchTasks } from './store';
+import { initSchema, listTasks, searchTasks } from './store';
 
 let ctxRef: PluginContext | null = null;
 
@@ -10,12 +10,12 @@ export default definePlugin({
   manifest: {
     id: 'mpw.tasks',
     name: '任务',
-    version: '0.1.0',
+    version: '0.2.0',
     author: 'ModuDesk',
     description: '待办与日程:任务清单、优先级、截止日,可关联文献 / 笔记 / 邮件等资源。',
     icon: 'check',
     minCoreVersion: '^0.1.0',
-    permissions: ['storage'],
+    permissions: ['storage', 'ai:invoke'],
     contributions: {
       widgets: [{ id: 'list', title: '任务', icon: 'check', defaultArea: 'right', minW: 220 }],
       routes: [{ id: 'main', title: '任务', icon: 'check', showInSidebar: true, order: 55 }],
@@ -38,6 +38,23 @@ export default definePlugin({
             }));
           },
         },
+      ],
+      contextProviders: [{
+        id: 'list',
+        label: '当前任务清单',
+        getContext: async () => {
+          if (!ctxRef) return null;
+          const tasks = await listTasks(ctxRef);
+          if (tasks.length === 0) return null;
+          return {
+            id: 'list', label: '当前任务清单', kind: 'text' as const, source: 'mpw.tasks',
+            content: tasks.slice(0, 100).map((task) => `- [${task.done ? 'x' : ' '}] ${task.title} | 优先级: ${task.priority}${task.due ? ` | 截止: ${task.due}` : ''}${task.link_uri ? ` | 关联: ${task.link_uri}` : ''}`).join('\n'),
+          };
+        },
+      }],
+      aiActions: [
+        { id: 'prioritize', label: '安排任务优先级', icon: 'check', insert: 'none', prompt: (_selection, context = '') => `根据重要性、紧急性、截止时间和依赖关系安排这些任务。说明排序理由，不要添加不存在的期限。\n\n${context}` },
+        { id: 'plan-day', label: '制定执行计划', icon: 'calendar', insert: 'none', prompt: (_selection, context = '') => `把未完成任务整理为一份现实的执行计划，识别可并行项和阻塞项；缺少工期时明确说明假设。\n\n${context}` },
       ],
     },
   },

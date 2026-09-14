@@ -17,7 +17,7 @@ async function setup() {
 }
 describe('email account UI', () => {
   it('confirms account deletion and clears the last selected account without reseeding', async () => {
-    const { db, ctx, el, root, click } = await setup(); const accounts = await listAccounts(ctx);
+    const { db, kernel, ctx, el, root, click } = await setup(); const accounts = await listAccounts(ctx);
     await removeAccount(ctx, accounts[1].id);
     await addMessage(ctx, { accountId: accounts[0].id, folder: 'inbox', subject: '超长正文', fromName: 'Long Sender', fromAddr: `${'very-long-address'.repeat(30)}@example.edu`, toList: [], bodyText: `https://example.edu/${'unbroken'.repeat(800)}`, date: Date.now() });
     await act(async () => root.render(<MailView ctx={ctx} />));
@@ -25,6 +25,8 @@ describe('email account UI', () => {
     const firstMail = [...el.querySelectorAll<HTMLElement>('.mail-row')].find((row) => row.textContent?.includes('超长正文'));
     expect(firstMail).toBeTruthy();
     await act(async () => firstMail!.click());
+    expect(await ctx.storage.get('ui.openMessageId', null)).toBeTruthy();
+    expect((await kernel.context.getActiveContext()).some((chunk) => chunk.source === 'mpw.email' && chunk.content.includes('超长正文'))).toBe(true);
     const reader = el.querySelector<HTMLElement>('.mail-reader'); const body = el.querySelector<HTMLElement>('.mail-reader-body');
     expect(reader!.style.width).toBe('var(--mpw-mail-reader-percent, 50%)');
     expect(reader!.style.maxWidth).toBe('var(--mpw-mail-reader-percent, 50%)');

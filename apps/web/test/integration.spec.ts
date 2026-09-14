@@ -76,12 +76,20 @@ describe('workspace + plugin system integration', () => {
   it('AI actions execute through the plugin permission gate (demo provider)', async () => {
     const k = await bootAll();
     const actions = k.enabledAiActions().map((a) => a.id);
-    expect(actions).toEqual(expect.arrayContaining(['polish', 'summarize', 'en2zh', 'gen-latex']));
+    expect(actions).toEqual(expect.arrayContaining(['polish', 'summarize', 'en2zh', 'gen-latex', 'zh-en', 'review', 'reply', 'organize', 'prioritize', 'next-steps', 'find']));
+    expect(k.enabledAiActions().find((action) => action.globalId === 'mpw.writing/zh-en')?.prompt('选中内容', '全文')).toContain('选中内容');
     const ctx = (k as unknown as { createContext(id: string): PluginContext }).createContext('mpw.ai');
     const result = await ctx.ai.run('here is Some text. with issues!! it needs polish', {
       system: 'polish this text.',
     });
     expect(result.text).not.toContain('!!  it'); // demo provider normalized spacing
+  });
+
+  it('exposes the current note to the global assistant', async () => {
+    const k = await bootAll();
+    await k.commands.execute('mpw.notes.newNote');
+    const chunks = await k.context.getActiveContext();
+    expect(chunks.some((chunk) => chunk.source === 'mpw.notes' && chunk.label.includes('Untitled note'))).toBe(true);
   });
 
   it('enabling/disabling plugins mid-session keeps the rest working', async () => {

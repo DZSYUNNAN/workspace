@@ -5,41 +5,13 @@ import { PdfPreview } from './PdfPreview';
 import { ResizeHandle, type PdfPoint } from '@mpw/ui';
 import { downloadBlob } from './docx';
 
-export type PaperTask = 'free' | 'zh-en' | 'en-zh' | 'polish' | 'review' | 'structure' | 'rewrite';
-const TASKS: { id: PaperTask; label: string }[] = [
-  { id: 'free', label: '自由指令' }, { id: 'zh-en', label: '中译英' }, { id: 'en-zh', label: '英译中' },
-  { id: 'polish', label: '学术润色' }, { id: 'review', label: '审稿风险检查' },
-  { id: 'structure', label: '解释论文结构' }, { id: 'rewrite', label: '章节改写' },
-];
-
-export function buildPaperAiRequest(task: PaperTask, instruction: string, selection: string, source: string): { prompt: string; system: string } {
-  const input = instruction.trim() || selection.trim() || source.slice(0, 45_000);
-  const systems: Record<PaperTask, string> = {
-    free: '你是严谨的论文写作助手。遵循用户指令，保留公式、引用和 LaTeX 命令，不虚构证据。',
-    'zh-en': '将中文学术文本翻译为可投稿的英文。保留技术术语、公式、引用和 LaTeX 命令，只输出译文。',
-    'en-zh': '将英文学术文本准确翻译为中文。保留技术含义、公式、引用和 LaTeX 命令，只输出译文。',
-    polish: '润色学术文本，使表达简洁、严谨、连贯；不要增加未经支持的结论。先给可直接使用的版本，再列简短修改说明。',
-    review: '以严格审稿人视角检查创新性表述、证据缺口、实验不足、引用缺口和 LaTeX 呈现问题，按优先级给出可执行建议。',
-    structure: '解释这份 LaTeX 论文的章节结构、论证链、已有优势、缺失证据和下一步修改顺序。不要修改源码。',
-    rewrite: '根据用户要求改写选中章节。返回可直接替换到 paper.tex 的完整 LaTeX 片段，不要使用 Markdown 代码围栏，不要虚构实验或引用。',
-  };
-  const prompt = task === 'review' || task === 'structure'
-    ? `${instruction.trim()}\n\n当前 paper.tex：\n${source.slice(0, 45_000)}`
-    : task === 'rewrite'
-      ? `改写要求：${instruction.trim() || '提高逻辑、严谨性和可读性'}\n\n待改写内容：\n${selection.trim() || source.slice(0, 45_000)}`
-      : input;
-  return { prompt, system: systems[task] };
-}
-
-export function LocalDocumentEditor({ session, onDetach, ctx }: { session: LocalDocumentSession; onDetach(): Promise<void>; ctx?: PluginContext }): React.ReactElement {
+export function LocalDocumentEditor({ session, onDetach, ctx, onSelectionChange }: { session: LocalDocumentSession; onDetach(): Promise<void>; ctx?: PluginContext; onSelectionChange?: (text: string) => void }): React.ReactElement {
   const [, redraw] = useState(0); const [error, setError] = useState(''); const [reloading, setReloading] = useState(false);
   const isTex = session.file.name.toLowerCase().endsWith('.tex');
   const [engine, setEngine] = useState<TexEngine>('xelatex'); const [compiling, setCompiling] = useState(false);
   const compilingRef = useRef(false); const mounted = useRef(true); const sourceRef = useRef<HTMLTextAreaElement>(null);
   const [pdf, setPdf] = useState<Uint8Array | null>(null); const [log, setLog] = useState(''); const [compiledText, setCompiledText] = useState('');
   const [locateStatus, setLocateStatus] = useState('双击 PDF 文本可定位到左侧 TeX 源码');
-  const [aiTask, setAiTask] = useState<PaperTask>('free'); const [aiInput, setAiInput] = useState('');
-  const [aiOutput, setAiOutput] = useState(''); const [aiBusy, setAiBusy] = useState(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => session.subscribe(() => redraw((n) => n + 1)), [session]);
 
@@ -79,22 +51,17 @@ export function LocalDocumentEditor({ session, onDetach, ctx }: { session: Local
     } catch (e) { setLocateStatus(String(e instanceof Error ? e.message : e)); }
   };
 
-  const runAi = async (): Promise<void> => {
-    if (!ctx || aiBusy) return;
-    const editor = sourceRef.current; const selection = editor ? (session.texts[0] ?? '').slice(editor.selectionStart, editor.selectionEnd) : '';
-    const request = buildPaperAiRequest(aiTask, aiInput, selection, session.texts[0] ?? '');
-    setAiBusy(true); setAiOutput('');
-    try { const result = await ctx.ai.run(request.prompt, { system: request.system, temperature: aiTask === 'review' ? 0.2 : 0.45, maxTokens: 4096 }); setAiOutput(result.text); }
-    catch (e) { setAiOutput(`AI 调用失败：${e instanceof Error ? e.message : String(e)}`); }
-    finally { setAiBusy(false); }
-  };
-
-  const applyAiOutput = (): void => {
-    const editor = sourceRef.current; if (!editor || !aiOutput || aiOutput.startsWith('AI 调用失败')) return;
-    const source = session.texts[0] ?? ''; const start = editor.selectionStart; const end = editor.selectionEnd;
-    session.edit(0, source.slice(0, start) + aiOutput + source.slice(end));
-    window.setTimeout(() => { editor.focus(); editor.setSelectionRange(start, start + aiOutput.length); }, 0);
-  };
+  useEffect(() => {
+    if (!ctx || !isTex) return undefined;
+    return ctx.events.on('writing:apply-ai-output', (payload) => {
+      const data = payload as { text?: string; targetLabel?: string };
+      if (!data.text || (data.targetLabel && data.targetLabel !== `本地 TeX: ${session.file.name}`)) return;
+      const editor = sourceRef.current; if (!editor) return;
+      const source = session.texts[0] ?? ''; const start = editor.selectionStart; const end = editor.selectionEnd;
+      session.edit(0, source.slice(0, start) + data.text + source.slice(end));
+      window.setTimeout(() => { editor.focus(); editor.setSelectionRange(start, start + data.text!.length); onSelectionChange?.(data.text!); }, 0);
+    });
+  }, [ctx, isTex, session, onSelectionChange]);
 
   const download = (): void => downloadBlob(new Blob([session.snapshot().slice().buffer], { type: documentMime(session.file.name) }), `编辑副本-${session.file.name}`);
   const reload = async (): Promise<void> => { setReloading(true); setError(''); try { if (session.phase !== 'saved') download(); await session.reload(); setPdf(null); setCompiledText(''); } catch (e) { setError(String(e instanceof Error ? e.message : e)); } finally { setReloading(false); } };
@@ -127,14 +94,8 @@ export function LocalDocumentEditor({ session, onDetach, ctx }: { session: Local
         {session.codec.blocks.map((block, i) => <div key={i} style={{ marginBottom: session.codec.kind === 'docx' ? 10 : 0 }}>
           {session.codec.kind === 'docx' && <label htmlFor={`local-paragraph-${i}`}>段落 {i + 1}{!block.editable && ' · 复杂内容只读'}</label>}
           <textarea ref={i === 0 ? sourceRef : undefined} id={`local-paragraph-${i}`} aria-label={isTex ? 'paper.tex 编辑器' : session.codec.kind === 'docx' ? `Word 段落 ${i + 1}` : '本地文档内容'} className={`input paper-source-editor${isTex || session.codec.kind === 'text' ? ' code' : ''}`} readOnly={!block.editable || reloading}
-            value={session.texts[i]} onChange={(e) => session.edit(i, e.target.value)} rows={session.codec.kind === 'docx' ? Math.max(2, Math.min(10, Math.ceil(session.texts[i].length / 50))) : 25} />
+            value={session.texts[i]} onChange={(e) => session.edit(i, e.target.value)} onSelect={(e) => onSelectionChange?.(e.currentTarget.value.slice(e.currentTarget.selectionStart, e.currentTarget.selectionEnd))} rows={session.codec.kind === 'docx' ? Math.max(2, Math.min(10, Math.ceil(session.texts[i].length / 50))) : 25} />
         </div>)}
-        {isTex && <section className="paper-ai-panel" aria-label="论文 AI 输出区">
-          <div className="paper-ai-controls"><select className="input" aria-label="论文 AI 任务" value={aiTask} onChange={(e) => setAiTask(e.target.value as PaperTask)}>{TASKS.map((task) => <option key={task.id} value={task.id}>{task.label}</option>)}</select>
-            <button className="btn primary" disabled={!ctx || aiBusy} onClick={() => void runAi()}>{aiBusy ? 'AI 正在处理…' : '发送到 AI'}</button></div>
-          <textarea className="input" aria-label="论文 AI 指令" rows={3} value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="输入文本或改写要求；留空时使用当前选区，结构/审稿任务会读取当前 tex。" />
-          {aiOutput && <><pre className="paper-ai-output">{aiOutput}</pre><div className="paper-ai-actions"><button className="btn sm" onClick={() => void navigator.clipboard.writeText(aiOutput)}>复制输出</button><button className="btn sm" onClick={applyAiOutput}>替换选区 / 插入光标</button><span>应用后会保存源码，但不会自动编译。</span></div></>}
-        </section>}
       </div>
       {pdf && <ResizeHandle direction={-1} onDelta={(delta) => ctx?.events.emit(LAYOUT_CONTROL_APPLY, { kind: 'modulePaneDelta', key: 'localTexPreviewPercent', delta: delta / Math.max(1, window.innerWidth) * 100 })} title="拖动调整编译 PDF 宽度" />}
       {pdf && <div className="local-document-preview"><PdfPreview bytes={pdf} onPointDoubleClick={(point) => void locateSource(point)} /><div className="pdf-locate-status" role="status">{locateStatus}</div></div>}

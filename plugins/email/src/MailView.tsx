@@ -107,6 +107,10 @@ export function MailView(props: { ctx: PluginContext; compact?: boolean }): Reac
   }, []);
 
   useEffect(() => {
+    void ctx.storage.set('ui.openMessageId', openId);
+  }, [ctx, openId]);
+
+  useEffect(() => {
     setMessages([]);
     void reloadMessages();
     const off = ctx.events.on('mail:changed', () => void reloadMessages());

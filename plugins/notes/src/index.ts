@@ -27,7 +27,7 @@ export default definePlugin({
   manifest: {
     id: 'mpw.notes',
     name: 'Notes',
-    version: '0.1.0',
+    version: '0.2.0',
     author: 'MPW',
     description: 'Markdown 知识库:文件夹、标签、[[双向链接]]、反向链接、数学公式、全文检索,可链接文献 / 邮件 / 文档。',
     icon: 'note',
@@ -75,6 +75,11 @@ export default definePlugin({
             };
           },
         },
+      ],
+      aiActions: [
+        { id: 'summarize', label: '总结笔记', icon: 'note', insert: 'none', prompt: (_selection, context = '') => `请总结这篇笔记的主题、关键观点和结论，保留原文中的专有名词。\n\n${context}` },
+        { id: 'organize', label: '整理笔记结构', icon: 'list', insert: 'none', prompt: (_selection, context = '') => `请把这篇笔记整理为清晰的 Markdown 大纲，保留已有事实，不补写没有依据的内容。\n\n${context}` },
+        { id: 'tasks', label: '提取待办', icon: 'check', insert: 'none', prompt: (_selection, context = '') => `从这篇笔记提取可执行待办，按优先级列出；如果没有明确待办，请说明。\n\n${context}` },
       ],
     },
   },

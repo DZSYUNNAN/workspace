@@ -8,12 +8,12 @@ export default definePlugin({
   manifest: {
     id: 'mpw.files',
     name: 'Files',
-    version: '0.1.0',
+    version: '0.2.0',
     author: 'MPW',
     description: '虚拟文件管理:上传、文件夹、下载、删除。文件内容存于本地文件库,元数据存于本地数据库。',
     icon: 'folder',
     minCoreVersion: '^0.1.0',
-    permissions: ['storage', 'blobs'],
+    permissions: ['storage', 'blobs', 'ai:invoke'],
     contributions: {
       widgets: [{ id: 'browser', title: '文件', icon: 'folder', defaultArea: 'left', minW: 220 }],
       routes: [{ id: 'main', title: '文件', icon: 'folder', showInSidebar: true, order: 50 }],
@@ -39,6 +39,22 @@ export default definePlugin({
             }));
           },
         },
+      ],
+      contextProviders: [{
+        id: 'inventory',
+        label: '文件库目录',
+        getContext: async () => {
+          if (!ctxRef) return null;
+          const files = await ctxRef.storage.sql.all<{ name: string; kind: string; mime: string | null; size: number }>(
+            'SELECT name, kind, mime, size FROM p_files_entries WHERE deleted_at IS NULL ORDER BY kind DESC, name LIMIT 200'
+          );
+          if (files.length === 0) return null;
+          return { id: 'inventory', label: '文件库目录', kind: 'metadata' as const, source: 'mpw.files', content: files.map((file) => `- ${file.kind === 'dir' ? '文件夹' : '文件'}: ${file.name}${file.mime ? ` | ${file.mime}` : ''}${file.kind === 'file' ? ` | ${(file.size / 1024).toFixed(1)} KB` : ''}`).join('\n') };
+        },
+      }],
+      aiActions: [
+        { id: 'organize', label: '建议文件整理', icon: 'folder', insert: 'none', prompt: (_selection, context = '') => `根据文件库目录，提出清晰的文件夹结构、命名和归档建议。只能依据元数据，不要声称读取了文件正文。\n\n${context}` },
+        { id: 'find', label: '分析文件分布', icon: 'search', insert: 'none', prompt: (_selection, context = '') => `分析文件类型、命名和大小分布，指出重复命名、难检索内容和需要整理的区域。只能依据元数据。\n\n${context}` },
       ],
     },
   },
