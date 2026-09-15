@@ -11,6 +11,9 @@ export interface LayoutControlSnapshot { layout: LayoutState; widgets: LayoutWid
 export const MODULE_SIZE_DEFAULTS = {
   sidebarWidth: 128,
   aiPanelWidth: 360,
+  aiContextHeight: 96,
+  aiActionsHeight: 150,
+  aiInputHeight: 104,
   mailFoldersWidth: 150,
   mailReaderPercent: 50,
   notesListWidth: 220,
@@ -24,6 +27,12 @@ export const MODULE_SIZE_DEFAULTS = {
 } as const;
 
 export type ModuleSizeKey = keyof typeof MODULE_SIZE_DEFAULTS;
+
+const MODULE_SIZE_LIMITS: Partial<Record<ModuleSizeKey, readonly [number, number]>> = {
+  aiContextHeight: [80, 320],
+  aiActionsHeight: [80, 420],
+  aiInputHeight: [80, 360],
+};
 
 export type LayoutSizeAction =
   | { kind: 'area'; area: Exclude<DockArea, 'center'>; size: number }
@@ -73,7 +82,8 @@ export function applyLayoutSizeAction(state: LayoutState, action: LayoutSizeActi
   }
   if (action.kind === 'modulePane') {
     const percent = action.key.endsWith('Percent');
-    const size = clamp(action.size, percent ? 20 : 80, percent ? 80 : 900);
+    const limits = MODULE_SIZE_LIMITS[action.key] ?? (percent ? [20, 80] : [80, 900]);
+    const size = clamp(action.size, limits[0], limits[1]);
     if (action.key === 'sidebarWidth') return { ...state, sidebar: { ...state.sidebar, width: clamp(size, 84, 260) } };
     return { ...state, moduleSizes: { ...state.moduleSizes, [action.key]: size } };
   }

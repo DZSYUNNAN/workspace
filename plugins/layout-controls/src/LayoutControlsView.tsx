@@ -14,6 +14,9 @@ interface PaneSetting { key: ModuleSizeKey; label: string; hint: string; min: nu
 const paneSettings: PaneSetting[] = [
   { key: 'sidebarWidth', label: '主导航栏', hint: '左侧图标与文字区域', min: 84, max: 260, unit: 'px' },
   { key: 'aiPanelWidth', label: 'AI 助手', hint: '右侧 AI 对话区域', min: 240, max: 720, unit: 'px' },
+  { key: 'aiContextHeight', label: 'AI 上下文区', hint: '上下文来源开关区域的高度', min: 80, max: 320, unit: 'px' },
+  { key: 'aiActionsHeight', label: 'AI 功能区', hint: '翻译、润色和章节任务区域的高度', min: 80, max: 420, unit: 'px' },
+  { key: 'aiInputHeight', label: 'AI 输入区', hint: '底部指令输入窗口的高度', min: 80, max: 360, unit: 'px' },
   { key: 'mailFoldersWidth', label: '邮件文件夹', hint: '邮箱账户与文件夹区域', min: 100, max: 360, unit: 'px' },
   { key: 'mailReaderPercent', label: '邮件正文', hint: '邮件内容窗口的宽度占比', min: 25, max: 75, unit: '%' },
   { key: 'notesListWidth', label: '笔记列表', hint: '笔记标题列表区域', min: 120, max: 520, unit: 'px' },

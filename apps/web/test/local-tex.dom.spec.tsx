@@ -28,10 +28,15 @@ describe('local TeX editor compile flow', () => {
     await act(async () => root.unmount());
   });
   it('builds output and rewrite prompts without compiling or changing the source', async () => {
-    const { buildPaperAiRequest } = await import('../../../plugins/writing/src/paperAi');
-    expect(buildPaperAiRequest('zh-en', '中文段落', '', 'source').system).toContain('翻译');
-    expect(buildPaperAiRequest('review', '重点检查证据', '', '\\section{Result}').prompt).toContain('当前 paper.tex');
-    expect(buildPaperAiRequest('rewrite', '改写摘要', '\\begin{abstract}x', 'source').prompt).toContain('待改写内容');
+    const { buildPaperAiRequest, PAPER_AI_ACTIONS } = await import('../../../plugins/writing/src/paperAi');
+    const translation = buildPaperAiRequest('zh-en', '中文段落', '', '不应翻译的论文全文');
+    expect(translation.system).toContain('publication-ready English');
+    expect(translation.prompt).toBe('中文段落');
+    expect(translation.prompt).not.toContain('论文全文');
+    expect(buildPaperAiRequest('review', '重点检查证据', '', '\\section{Result}').prompt).toBe('重点检查证据');
+    expect(buildPaperAiRequest('rewrite', '改写摘要', '\\begin{abstract}x', 'source').prompt).toContain('Current TeX selection');
+    expect(buildPaperAiRequest('rewrite-abstract', '', '', '\\begin{abstract}x').system).toContain('context, gap, approach');
+    expect(PAPER_AI_ACTIONS.map((action) => action.label)).toEqual(expect.arrayContaining(['自由指令', '中译英', '英译中', '学术英文润色', '中文学术润色', '一键写出全部章节', '摘要', '实验分析', '结论']));
   });
   it('uses the unified assistant write-back without refreshing the compiled PDF', async () => {
     const compile = vi.fn().mockResolvedValue({ ok: true, pdfBase64: btoa('%PDF-before-ai'), log: 'ok' });

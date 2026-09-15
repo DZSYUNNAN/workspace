@@ -41,6 +41,7 @@ export function validateManifest(m: PluginManifest): void {
   }
   for (const aa of c.aiActions ?? []) {
     assert(typeof aa.prompt === 'function', `${m.id}: aiAction ${aa.id} needs prompt fn`);
+    assert(!aa.inputMode || ['input-first', 'input-or-context', 'context-with-instruction'].includes(aa.inputMode), `${m.id}: aiAction ${aa.id} has invalid inputMode`);
   }
   for (const sf of c.settings ?? []) {
     assert(SCOPE_ID_RE.test(sf.key), `${m.id}: setting key "${sf.key}" must be [a-z0-9_-]`);

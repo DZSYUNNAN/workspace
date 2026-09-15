@@ -134,11 +134,15 @@ contextProviders: [{
 }],
 aiActions: [{
   id: 'summarize', label: '总结当前记录', icon: 'sparkles', insert: 'none',
+  description: '总结当前打开的记录',
+  inputMode: 'context-with-instruction',
   prompt: (_selection, context = '') => `请准确总结以下内容：\n\n${context}`
 }]
 ```
 
 上下文应只返回用户当前打开或明确选择的内容，并设置长度上限。用户可以在右侧助手顶部关闭任何来源。
+
+AI 动作可用三种输入策略：翻译、润色等只处理输入框或选区的功能使用 `input-first`；输入为空时才读取当前文档的检查功能使用 `input-or-context`；将输入框作为修改要求、同时读取文档的章节任务使用 `context-with-instruction`。这样可以避免把整篇论文误当成输入框文本处理。
 
 ## 6. 可拉伸界面
 

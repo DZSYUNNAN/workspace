@@ -55,6 +55,8 @@ describe('layout size controls', () => {
     expect(resized.moduleSizes?.localTexPreviewPercent).toBe(67);
     const dragged = applyLayoutSizeAction(resized, { kind: 'modulePaneDelta', key: 'localTexPreviewPercent', delta: -5 });
     expect(dragged.moduleSizes?.localTexPreviewPercent).toBe(62);
+    const aiInput = applyLayoutSizeAction(layout, { kind: 'modulePaneDelta', key: 'aiInputHeight', delta: 400 });
+    expect(aiInput.moduleSizes?.aiInputHeight).toBe(360);
     const hidden = applyLayoutSizeAction(resized, { kind: 'sidebarVisibility', routeKey: 'mpw.email/main', visible: false, routeKeys: ['mpw.email/main', 'mpw.notes/main'] });
     expect(hidden.sidebar?.visibleRouteKeys).toEqual(['mpw.notes/main']);
     const shown = applyLayoutSizeAction(hidden, { kind: 'showAllSidebarRoutes' });

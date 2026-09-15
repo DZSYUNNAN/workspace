@@ -21,6 +21,8 @@ export function App(): React.ReactElement {
   const size = { ...MODULE_SIZE_DEFAULTS, ...layout.moduleSizes, sidebarWidth: layout.sidebar?.width ?? MODULE_SIZE_DEFAULTS.sidebarWidth };
   const shellStyle = {
     '--mpw-sidebar-width': `${size.sidebarWidth}px`, '--mpw-ai-panel-width': `${size.aiPanelWidth}px`,
+    '--mpw-ai-context-height': `${size.aiContextHeight}px`, '--mpw-ai-actions-height': `${size.aiActionsHeight}px`,
+    '--mpw-ai-input-height': `${size.aiInputHeight}px`,
     '--mpw-mail-folders-width': `${size.mailFoldersWidth}px`, '--mpw-mail-reader-percent': `${size.mailReaderPercent}%`,
     '--mpw-notes-list-width': `${size.notesListWidth}px`, '--mpw-notes-editor-percent': `${size.notesEditorPercent}%`,
     '--mpw-writing-list-width': `${size.writingListWidth}px`, '--mpw-latex-preview-percent': `${size.latexPreviewPercent}%`,

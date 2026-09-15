@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state';
-import { Icon } from '@mpw/ui';
-import type { AiResult, ContextChunk } from '@mpw/shared';
+import { Icon, ResizeHandle } from '@mpw/ui';
+import type { AiActionContribution } from '@mpw/kernel';
+import { applyLayoutSizeAction, type AiResult, type ContextChunk, type ModuleSizeKey } from '@mpw/shared';
 
 interface ChatMsg {
   role: 'user' | 'assistant';
@@ -18,16 +19,56 @@ interface QuickAction {
   buildPrompt(ctx: ContextChunk[]): string;
 }
 
+export interface AiActionMaterial {
+  primaryText: string;
+  contextText: string;
+  includeContext: boolean;
+  hasRequiredInput: boolean;
+}
+
+export function resolveAiActionMaterial(mode: NonNullable<AiActionContribution['inputMode']>, typed: string, selection: string, contextText: string): AiActionMaterial {
+  const input = typed.trim();
+  const selected = selection.trim();
+  const context = contextText.trim();
+  if (mode === 'input-first') {
+    const primaryText = input || selected;
+    return { primaryText, contextText: '', includeContext: false, hasRequiredInput: Boolean(primaryText) };
+  }
+  if (mode === 'input-or-context') {
+    const primaryText = input || selected;
+    return { primaryText, contextText: primaryText ? '' : context, includeContext: !primaryText, hasRequiredInput: Boolean(primaryText || context) };
+  }
+  const combinedContext = selected ? `Current TeX selection:\n${selected}\n\nCurrent paper.tex:\n${context}` : context;
+  return { primaryText: input, contextText: combinedContext, includeContext: true, hasRequiredInput: Boolean(combinedContext) };
+}
+
+export async function copyChatText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  textarea.remove();
+}
+
 /** 全局 AI 侧栏 — 问候语 + 快捷指令 + 上下文许可芯片(ModuDesk 设计稿)。 */
 export function AiPanel(): React.ReactElement {
-  const { kernel, aiPanelOpen, refresh, navigate, route } = useApp();
+  const { kernel, aiPanelOpen, refresh, navigate, route, setLayout } = useApp();
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [showCtx, setShowCtx] = useState(true);
+  const [copied, setCopied] = useState<number | null>(null);
   const [consent, setConsent] = useState<Record<string, boolean>>({});
   const [ctxSig, setCtxSig] = useState(0);
   const msgsRef = useRef<HTMLDivElement>(null);
+  const resize = (key: ModuleSizeKey, delta: number): void => setLayout((current) => applyLayoutSizeAction(current, { kind: 'modulePaneDelta', key, delta }));
   const version = useApp().version;
   void version;
 
@@ -66,7 +107,7 @@ export function AiPanel(): React.ReactElement {
     return activePlugin ? allowed.filter((c) => c.source === activePlugin) : allowed;
   };
 
-  const run = async (prompt: string, label: string, preparedChunks?: ContextChunk[]): Promise<void> => {
+  const run = async (prompt: string, label: string, preparedChunks?: ContextChunk[], allowApply = false): Promise<void> => {
     setMsgs((m) => [...m, { role: 'user', text: label }]);
     setBusy(true);
     try {
@@ -79,7 +120,7 @@ export function AiPanel(): React.ReactElement {
           role: 'assistant',
           text: result.text,
           provider: `${result.provider}${chunks.length > 0 ? ` · ${chunks.length} 个上下文来源` : ''}`,
-          applyTarget: localTex?.label,
+          applyTarget: allowApply ? localTex?.label : undefined,
         },
       ]);
     } catch (err) {
@@ -152,7 +193,7 @@ export function AiPanel(): React.ReactElement {
         </button>
       </div>
       {showCtx && providers.length > 0 && (
-        <div className="ai-chips" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+        <div className="ai-chips" aria-label="AI 上下文来源">
           {activePlugin && <span className="badge gray">当前模块：{g_label(activePlugin)}</span>}
           {providers.map((p) => (
             <span key={p.key} className={`chip${consent[p.key] !== false ? ' on' : ''}`} onClick={() => toggleProvider(p.key)} title="切换是否允许 AI 读取该上下文">
@@ -162,6 +203,7 @@ export function AiPanel(): React.ReactElement {
           ))}
         </div>
       )}
+      {showCtx && providers.length > 0 && <ResizeHandle axis="y" onDelta={(delta) => resize('aiContextHeight', delta)} title="拖动调整 AI 上下文区高度" />}
       {contributedActions.length > 0 && (
         <div className="ai-module-actions" aria-label={`${g_label(activePlugin ?? '')} AI 功能`}>
           {contributedActions.map((action) => (
@@ -169,19 +211,39 @@ export function AiPanel(): React.ReactElement {
               void (async () => {
                 const chunks = await activeChunks();
                 const own = chunks.filter((chunk) => chunk.source === action.pluginId);
+                const selection = own.filter((chunk) => chunk.kind === 'selection').map((chunk) => chunk.content).join('\n\n');
+                const contextText = own.filter((chunk) => chunk.kind !== 'selection').map((chunk) => chunk.content).join('\n\n');
+                if (action.inputMode) {
+                  const material = resolveAiActionMaterial(action.inputMode, input, selection, contextText);
+                  if (!material.hasRequiredInput) {
+                    const message = action.inputMode === 'input-first'
+                      ? `⚠ 请先在下方输入框粘贴需要处理的文本，或在 TeX 编辑器中选中文本。`
+                      : `⚠ 请先在「${g_label(action.pluginId)}」模块打开内容，并确认上方上下文开关已启用。`;
+                    setMsgs((m) => [...m, { role: 'assistant', text: message }]);
+                    return;
+                  }
+                  const typed = input.trim();
+                  if (typed) setInput('');
+                  await run(
+                    action.prompt(material.primaryText, material.contextText),
+                    typed ? `${action.label}\n${typed}` : action.label,
+                    material.includeContext ? chunks : [],
+                    action.insert !== 'none',
+                  );
+                  return;
+                }
                 if (own.length === 0) {
                   setMsgs((m) => [...m, { role: 'assistant', text: `⚠ 请先在「${g_label(action.pluginId)}」模块打开内容，并确认上方上下文开关已启用。` }]);
                   return;
                 }
-                const selection = own.filter((chunk) => chunk.kind === 'selection').map((chunk) => chunk.content).join('\n\n');
-                const contextText = own.filter((chunk) => chunk.kind !== 'selection').map((chunk) => chunk.content).join('\n\n');
                 await run(action.prompt(selection, contextText), action.label, chunks);
               })();
-            }}><Icon name={action.icon ?? 'sparkles'} size={13} /> {action.label}</button>
+            }} title={action.description}><Icon name={action.icon ?? 'sparkles'} size={13} /> {action.label}</button>
           ))}
         </div>
       )}
-      <div className="ai-msgs" ref={msgsRef}>
+      {contributedActions.length > 0 && <ResizeHandle axis="y" onDelta={(delta) => resize('aiActionsHeight', delta)} title="拖动调整 AI 功能区高度" />}
+      <div className="ai-msgs" ref={msgsRef} aria-label="AI 聊天内容">
         {msgs.length === 0 && (
           <div className="ai-greet">
             <div className="ai-greet-title">{greeting},有什么可以帮你的吗?</div>
@@ -235,8 +297,9 @@ export function AiPanel(): React.ReactElement {
         )}
         {msgs.map((m, i) => (
           <div key={i} className={`ai-msg ${m.role}`}>
-            {m.text}
+            <div className="ai-msg-text">{m.text}</div>
             {m.provider && <span className="ai-src">{m.provider}</span>}
+            <button className="ai-copy" title="复制消息" onClick={() => void copyChatText(m.text).then(() => setCopied(i)).catch(() => setCopied(null))}>{copied === i ? '已复制' : '复制'}</button>
             {m.role === 'assistant' && m.applyTarget && (
               <button className="btn sm ai-apply" title="写入源码并自动保存；不会自动编译 PDF" onClick={() => kernel.events.emit('writing:apply-ai-output', { text: m.text, targetLabel: m.applyTarget })}>
                 写入当前 TeX 选区
@@ -246,7 +309,8 @@ export function AiPanel(): React.ReactElement {
         ))}
         {busy && <div className="ai-msg assistant">生成中…</div>}
       </div>
-      <div className="ai-input">
+      <ResizeHandle axis="y" direction={-1} onDelta={(delta) => resize('aiInputHeight', delta)} title="拖动调整 AI 输入区高度" />
+      <div className="ai-input" aria-label="AI 指令输入区">
         <textarea
           className="input"
           placeholder="输入问题,或选择屏幕内容…"

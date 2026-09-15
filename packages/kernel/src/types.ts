@@ -81,6 +81,10 @@ export interface AiActionContribution {
   id: string;
   label: string;
   icon?: string;
+  /** Short help shown by the shared assistant. */
+  description?: string;
+  /** How the shared assistant should combine its composer text with module context. */
+  inputMode?: 'input-first' | 'input-or-context' | 'context-with-instruction';
   prompt: (selection: string, contextText?: string) => string;
   appliesTo?: string[];
   insert?: 'replace' | 'below' | 'none';

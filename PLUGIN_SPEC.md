@@ -80,6 +80,8 @@ export interface ContextProviderContribution {
 
 export interface AiActionContribution {
   id: string; label: string; icon?: string;
+  description?: string;
+  inputMode?: 'input-first' | 'input-or-context' | 'context-with-instruction';
   prompt: (selection: string, ctxText?: string) => string;
   appliesTo?: string[];          // mime/kind filter, e.g. ['text/markdown','latex']
   insert?: 'replace' | 'below' | 'none';   // what to do with the result
@@ -92,6 +94,8 @@ export interface SettingField {
   hint?: string; secret?: boolean;       // secret → stored in keychain, not DB
 }
 ```
+
+`inputMode` controls how the shared right-side composer is routed. `input-first` uses the composer text (or current selection) without attaching the full document; use it for translation and polishing. `input-or-context` falls back to the active document only when both are empty. `context-with-instruction` treats composer text as an instruction and supplies the active document separately. If omitted, the action keeps the original selection/context behavior.
 
 ## 3. Plugin context — the only bridge to the core
 
